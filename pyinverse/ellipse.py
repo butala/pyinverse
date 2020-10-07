@@ -76,32 +76,30 @@ def integrate_indicator_function(indicator_fun, bounds, N=20):
     return sum([indicator_fun((x, y)) for x, y in zip(X.flat, Y.flat)]) / N**2
 
 
-# MOVE OVERSAMPLE OUT!
-def raster_ellipse(e, regular_grid, oversample=2, doall=False, A=None):
+def raster_ellipse(e, regular_grid, doall=False, A=None):
     """
     """
-    grid2 = oversample_regular_grid(regular_grid, oversample)
     if A is None:
-        A = np.zeros(grid2.shape)
+        A = np.zeros(regular_grid.shape)
     # find nonzero rows and cols
     min_x, min_y, max_x, max_y = e.bounds
     try:
-        J1 = max(np.argwhere(grid2.axis_x.bounds[:-1] >= min_x)[0][0] - 1, 0)
-        J2 = min(np.argwhere(grid2.axis_x.bounds[1:] <= max_x)[-1][0] + 1, grid2.axis_x.N - 1)
-        I1 = max(np.argwhere(grid2.axis_y.bounds[:-1] >= min_y)[0][0] - 1, 0)
-        I2 = min(np.argwhere(grid2.axis_y.bounds[1:] <= max_y)[-1][0] + 1, grid2.axis_y.N - 1)
+        J1 = max(np.argwhere(regular_grid.axis_x.bounds[:-1] >= min_x)[0][0] - 1, 0)
+        J2 = min(np.argwhere(regular_grid.axis_x.bounds[1:] <= max_x)[-1][0] + 1, regular_grid.axis_x.N - 1)
+        I1 = max(np.argwhere(regular_grid.axis_y.bounds[:-1] >= min_y)[0][0] - 1, 0)
+        I2 = min(np.argwhere(regular_grid.axis_y.bounds[1:] <= max_y)[-1][0] + 1, regular_grid.axis_y.N - 1)
     except IndexError:
         # ellipse is outside the raster window --- return the 0 matrix
         return A
 
     if doall:
         J1 = 0
-        J2 = grid2.axis_x.N - 1
+        J2 = regular_grid.axis_x.N - 1
         I1 = 0
-        I2 = grid2.axis_y.N - 1
+        I2 = regular_grid.axis_y.N - 1
 
-    X, Y = np.meshgrid(grid2.axis_x.bounds[J1:J2+2] - e.x0,
-                       (grid2.axis_y.bounds[I1:I2+2] - e.y0))
+    X, Y = np.meshgrid(regular_grid.axis_x.bounds[J1:J2+2] - e.x0,
+                       (regular_grid.axis_y.bounds[I1:I2+2] - e.y0))
     D = (X*e.cos_phi + Y*e.sin_phi)**2 / e.a_sq + (Y*e.cos_phi - X*e.sin_phi)**2 / e.b_sq
 
     n_rows = A.shape[0]
@@ -118,10 +116,10 @@ def raster_ellipse(e, regular_grid, oversample=2, doall=False, A=None):
             elif (np.array(D_bounds_ij) <= 1).any():
                 # the pixel partially intersects with the ellipse
                 indicator_fun = lambda x: e(x[0], x[1])
-                bounds = [grid2.axis_x.bounds[j],
-                          grid2.axis_x.bounds[j+1],
-                          grid2.axis_y.bounds[i],
-                          grid2.axis_y.bounds[i+1]]
+                bounds = [regular_grid.axis_x.bounds[j],
+                          regular_grid.axis_x.bounds[j+1],
+                          regular_grid.axis_y.bounds[i],
+                          regular_grid.axis_y.bounds[i+1]]
                 #I = integrate_indicator_function(indicator_fun, bounds)
                 #print(I, e.A)
                 A[(n_rows - 1) - i, j] += integrate_indicator_function(indicator_fun, bounds)
