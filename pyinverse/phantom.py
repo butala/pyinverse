@@ -77,10 +77,10 @@ class Phantom:
             A = e.raster(regular_grid, A=A)
         return A
 
-    def projection(self, thetas, t_axis, rect=False):
+    def sinogram(self, thetas, t_axis, rect=False):
         """
         """
         Y = np.zeros((t_axis.N, len(thetas)))
         for e in self._ellipses:
-            e.projection(thetas, t_axis, rect=rect, Y=Y)
+            e.sinogram(thetas, t_axis, rect=rect, Y=Y)
         return Y
