@@ -80,7 +80,7 @@ class Phantom:
     def projection(self, thetas, t_axis, rect=False):
         """
         """
-        y = np.zeros((len(thetas), t_axis.N))
+        Y = np.zeros((t_axis.N, len(thetas)))
         for e in self._ellipses:
-            t = e.projection(thetas, t_axis, rect=rect, y=y)
-        return y
+            e.projection(thetas, t_axis, rect=rect, Y=Y)
+        return Y
