@@ -1,6 +1,6 @@
 import numpy as np
 
-from .ellipse import Ellipse, raster_ellipse
+from .ellipse import Ellipse
 
 
 """
@@ -74,5 +74,5 @@ class Phantom:
         """
         A = np.zeros(regular_grid.shape)
         for e in self._ellipses:
-            A = raster_ellipse(e, regular_grid, A=A)
+            A = e.raster(regular_grid, A=A)
         return A

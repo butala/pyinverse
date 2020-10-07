@@ -36,6 +36,15 @@ def get_ellipse_bb(x, y, major, minor, angle_deg):
     return min_x, min_y, max_x, max_y
 
 
+def integrate_indicator_function(indicator_fun, bounds, N=20):
+    """
+    """
+    min_x, max_x, min_y, max_y = bounds
+    X, Y = np.meshgrid(np.linspace(min_x, max_x, N),
+                       np.linspace(min_y, max_y, N))
+    return sum([indicator_fun((x, y)) for x, y in zip(X.flat, Y.flat)]) / N**2
+
+
 @dataclass
 class Ellipse:
     # Following convention in https://www.mathworks.com/help/images/ref/phantom.html
@@ -66,72 +75,60 @@ class Ellipse:
         y_prime = y - self.y0
         return ((x_prime*self.cos_phi + y_prime*self.sin_phi)**2 / self.a_sq + (y_prime*self.cos_phi - x_prime*self.sin_phi)**2 / self.b_sq <= 1) * self.A
 
+    def raster(self, regular_grid, doall=False, A=None, N=20):
+        """
+        """
+        if A is None:
+            A = np.zeros(regular_grid.shape)
+        # find nonzero rows and cols
+        min_x, min_y, max_x, max_y = self.bounds
+        try:
+            J1 = max(np.argwhere(regular_grid.axis_x.bounds[:-1] >= min_x)[0][0] - 1, 0)
+            J2 = min(np.argwhere(regular_grid.axis_x.bounds[1:] <= max_x)[-1][0] + 1, regular_grid.axis_x.N - 1)
+            I1 = max(np.argwhere(regular_grid.axis_y.bounds[:-1] >= min_y)[0][0] - 1, 0)
+            I2 = min(np.argwhere(regular_grid.axis_y.bounds[1:] <= max_y)[-1][0] + 1, regular_grid.axis_y.N - 1)
+        except IndexError:
+            # ellipse is outside the raster window --- return the 0 matrix
+            return A
 
-def integrate_indicator_function(indicator_fun, bounds, N=20):
-    """
-    """
-    min_x, max_x, min_y, max_y = bounds
-    X, Y = np.meshgrid(np.linspace(min_x, max_x, N),
-                       np.linspace(min_y, max_y, N))
-    return sum([indicator_fun((x, y)) for x, y in zip(X.flat, Y.flat)]) / N**2
+        if doall:
+            J1 = 0
+            J2 = regular_grid.axis_x.N - 1
+            I1 = 0
+            I2 = regular_grid.axis_y.N - 1
 
+        # Determine if corners of each pixel are contained inside the ellipse.
+        X, Y = np.meshgrid(regular_grid.axis_x.bounds[J1:J2+2] - self.x0,
+                           (regular_grid.axis_y.bounds[I1:I2+2] - self.y0))
+        D = (X*self.cos_phi + Y*self.sin_phi)**2 / self.a_sq + (Y*self.cos_phi - X*self.sin_phi)**2 / self.b_sq
 
-def raster_ellipse(e, regular_grid, doall=False, A=None):
-    """
-    """
-    if A is None:
-        A = np.zeros(regular_grid.shape)
-    # find nonzero rows and cols
-    min_x, min_y, max_x, max_y = e.bounds
-    try:
-        J1 = max(np.argwhere(regular_grid.axis_x.bounds[:-1] >= min_x)[0][0] - 1, 0)
-        J2 = min(np.argwhere(regular_grid.axis_x.bounds[1:] <= max_x)[-1][0] + 1, regular_grid.axis_x.N - 1)
-        I1 = max(np.argwhere(regular_grid.axis_y.bounds[:-1] >= min_y)[0][0] - 1, 0)
-        I2 = min(np.argwhere(regular_grid.axis_y.bounds[1:] <= max_y)[-1][0] + 1, regular_grid.axis_y.N - 1)
-    except IndexError:
-        # ellipse is outside the raster window --- return the 0 matrix
+        n_rows = A.shape[0]
+        for index_i, i in enumerate(range(I1, I2 + 1)):
+            for index_j, j in enumerate(range(J1, J2 + 1)):
+                D_bounds_ij = [D[index_i, index_j],
+                               D[index_i, index_j + 1],
+                               D[index_i + 1, index_j],
+                               D[index_i + 1, index_j + 1]]
+                if (np.array(D_bounds_ij) <= 1).all():
+                    # all 4 points bounding the pixel are contained inside the ellipse
+                    A[(n_rows - 1) - i, j] += self.A
+                elif (np.array(D_bounds_ij) <= 1).any():
+                    # the pixel partially intersects with the ellipse
+                    indicator_fun = lambda x: self(x[0], x[1])
+                    bounds = [regular_grid.axis_x.bounds[j],
+                              regular_grid.axis_x.bounds[j+1],
+                              regular_grid.axis_y.bounds[i],
+                              regular_grid.axis_y.bounds[i+1]]
+                    A[(n_rows - 1) - i, j] += integrate_indicator_function(indicator_fun, bounds, N=N)
+
+        # Why the flipped row indexing, i.e., why do we index via (n_rows
+        # - 1) - i and not i? As the code is written, row 0 of A is
+        # associated with element 0 of grid.axis_y --- the smallest
+        # (bottom-most) vertical coordinate. However, the typical
+        # convention is origin=upper (using the terminology adopted in the
+        # documentation for the Matplotlib imshow function), i.e., that
+        # element [0,0] corresponds to the upper left corner of the axis
+        # (the alternative convention of origin=lower places element [0,0]
+        # to the lower left corer of the axis).
+
         return A
-
-    if doall:
-        J1 = 0
-        J2 = regular_grid.axis_x.N - 1
-        I1 = 0
-        I2 = regular_grid.axis_y.N - 1
-
-    X, Y = np.meshgrid(regular_grid.axis_x.bounds[J1:J2+2] - e.x0,
-                       (regular_grid.axis_y.bounds[I1:I2+2] - e.y0))
-    D = (X*e.cos_phi + Y*e.sin_phi)**2 / e.a_sq + (Y*e.cos_phi - X*e.sin_phi)**2 / e.b_sq
-
-    n_rows = A.shape[0]
-
-    for index_i, i in enumerate(range(I1, I2 + 1)):
-        for index_j, j in enumerate(range(J1, J2 + 1)):
-            D_bounds_ij = [D[index_i, index_j],
-                           D[index_i, index_j + 1],
-                           D[index_i + 1, index_j],
-                           D[index_i + 1, index_j + 1]]
-            if (np.array(D_bounds_ij) <= 1).all():
-                # all 4 points bounding the pixel are contained inside the ellipse
-                A[(n_rows - 1) - i, j] += e.A
-            elif (np.array(D_bounds_ij) <= 1).any():
-                # the pixel partially intersects with the ellipse
-                indicator_fun = lambda x: e(x[0], x[1])
-                bounds = [regular_grid.axis_x.bounds[j],
-                          regular_grid.axis_x.bounds[j+1],
-                          regular_grid.axis_y.bounds[i],
-                          regular_grid.axis_y.bounds[i+1]]
-                #I = integrate_indicator_function(indicator_fun, bounds)
-                #print(I, e.A)
-                A[(n_rows - 1) - i, j] += integrate_indicator_function(indicator_fun, bounds)
-
-    # Why the flipped row indexing, i.e., why do we index via (n_rows
-    # - 1) - i and not i? As the code is written, row 0 of A is
-    # associated with element 0 of grid.axis_y --- the smallest
-    # (bottom-most) vertical coordinate. However, the typical
-    # convention is origin=upper (using the terminology adopted in the
-    # documentation for the Matplotlib imshow function), i.e., that
-    # element [0,0] corresponds to the upper left corner of the axis
-    # (the alternative convention of origin=lower places element [0,0]
-    # to the lower left corer of the axis).
-
-    return A
