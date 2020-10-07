@@ -11,21 +11,17 @@ class Regular:
     T:  float
     N:  int
 
+    def __post_init__(self):
+        self._centers = self.x0 + np.arange(self.N, dtype=np.float) * self.T
+        self._bounds = self.x0 - self.T/2 + np.arange(self.N + 1, dtype=np.float) * self.T
+
     @property
     def centers(self):
-        try:
-            return self._centers
-        except AttributeError:
-            self._centers = self.x0 + np.arange(self.N, dtype=np.float) * self.T
-            return self._centers
+        return self._centers
 
     @property
     def bounds(self):
-        try:
-            return self._bounds
-        except AttributeError:
-            self._bounds = self.x0 - self.T/2 + np.arange(self.N + 1, dtype=np.float) * self.T
-            return self._bounds
+        return self._bounds
 
     def __iter__(self):
         return iter(self.centers)
