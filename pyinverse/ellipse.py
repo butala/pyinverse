@@ -31,6 +31,8 @@ def get_ellipse_bb(x, y, major, minor, angle_deg):
         t = np.arctan(minor * 1. / np.tan(angle_rad) / major)
     [max_y, min_y] = [y + minor * np.sin(t) * np.cos(angle_rad) +
                       major * np.cos(t) * np.sin(angle_rad) for t in (t, t + np.pi)]
+    min_x, max_x = sorted([min_x, max_x])
+    min_y, max_y = sorted([min_y, max_y])
     return min_x, min_y, max_x, max_y
 
 
@@ -74,11 +76,13 @@ def integrate_indicator_function(indicator_fun, bounds, N=20):
     return sum([indicator_fun((x, y)) for x, y in zip(X.flat, Y.flat)]) / N**2
 
 
-def raster_ellipse(e, regular_grid, oversample=2, doall=False):
+# MOVE OVERSAMPLE OUT!
+def raster_ellipse(e, regular_grid, oversample=2, doall=False, A=None):
     """
     """
     grid2 = oversample_regular_grid(regular_grid, oversample)
-    A = np.zeros(grid2.shape)
+    if A is None:
+        A = np.zeros(grid2.shape)
     # find nonzero rows and cols
     min_x, min_y, max_x, max_y = e.bounds
     try:
@@ -100,6 +104,8 @@ def raster_ellipse(e, regular_grid, oversample=2, doall=False):
                        (grid2.axis_y.bounds[I1:I2+2] - e.y0))
     D = (X*e.cos_phi + Y*e.sin_phi)**2 / e.a_sq + (Y*e.cos_phi - X*e.sin_phi)**2 / e.b_sq
 
+    n_rows = A.shape[0]
+
     for index_i, i in enumerate(range(I1, I2 + 1)):
         for index_j, j in enumerate(range(J1, J2 + 1)):
             D_bounds_ij = [D[index_i, index_j],
@@ -108,7 +114,7 @@ def raster_ellipse(e, regular_grid, oversample=2, doall=False):
                            D[index_i + 1, index_j + 1]]
             if (np.array(D_bounds_ij) <= 1).all():
                 # all 4 points bounding the pixel are contained inside the ellipse
-                A[i, j] += e.A * grid2.axis_x.T * grid2.axis_y.T
+                A[(n_rows - 1) - i, j] += e.A
             elif (np.array(D_bounds_ij) <= 1).any():
                 # the pixel partially intersects with the ellipse
                 indicator_fun = lambda x: e(x[0], x[1])
@@ -116,17 +122,18 @@ def raster_ellipse(e, regular_grid, oversample=2, doall=False):
                           grid2.axis_x.bounds[j+1],
                           grid2.axis_y.bounds[i],
                           grid2.axis_y.bounds[i+1]]
-                I = integrate_indicator_function(indicator_fun, bounds)
-                A[i, j] += I * e.A * grid2.axis_x.T * grid2.axis_y.T
+                #I = integrate_indicator_function(indicator_fun, bounds)
+                #print(I, e.A)
+                A[(n_rows - 1) - i, j] += integrate_indicator_function(indicator_fun, bounds)
 
-    # Why the flip? A has been constructed row by row, starting from
-    # row 0. As the code is written, row 0 of A is associated with
-    # element 0 of grid.axis_y --- the smallest (bottom-most) vertical
-    # coordinate. However, the typical convention is origin=upper
-    # (using the terminology adopted in the documentation for the
-    # Matplotlib imshow function), i.e., that element [0,0]
-    # corresponds to the upper left corner of the axis (the
-    # alternative convention of origin=lower places element [0,0] to
-    # the lower left corer of the axis).
+    # Why the flipped row indexing, i.e., why do we index via (n_rows
+    # - 1) - i and not i? As the code is written, row 0 of A is
+    # associated with element 0 of grid.axis_y --- the smallest
+    # (bottom-most) vertical coordinate. However, the typical
+    # convention is origin=upper (using the terminology adopted in the
+    # documentation for the Matplotlib imshow function), i.e., that
+    # element [0,0] corresponds to the upper left corner of the axis
+    # (the alternative convention of origin=lower places element [0,0]
+    # to the lower left corer of the axis).
 
-    return A[::-1, :]
+    return A
