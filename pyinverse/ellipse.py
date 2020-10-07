@@ -83,7 +83,7 @@ def ellipse_proj(ellipse, thetas_deg, t_axis, Y=None):
     I = abs(TAU) <= ALPHA
     if Y is None:
         Y = np.zeros((t_axis.N, len(thetas_deg)))
-    Y[I] += 2 * ellipse.A * ellipse.a * ellipse.b / ALPHA[I]**2 * np.sqrt(ALPHA[I]**2 - TAU[I]**2)
+    Y[I] += 2 * ellipse.rho * ellipse.a * ellipse.b / ALPHA[I]**2 * np.sqrt(ALPHA[I]**2 - TAU[I]**2)
     return Y
 
 
@@ -125,7 +125,7 @@ def ellipse_proj_rect(ellipse, thetas_deg, t_axis, Y=None):
     # See (Note on flip)
     T1, T2 = T2, T1
 
-    phi_rad = math.radians(ellipse.phi)
+    phi_rad = math.radians(ellipse.phi_deg)
     ALPHA = THETA - phi_rad
     s = math.sqrt(ellipse.x0**2 + ellipse.y0**2)
     gamma = math.atan2(ellipse.y0, ellipse.x0)
@@ -154,7 +154,7 @@ def ellipse_proj_rect(ellipse, thetas_deg, t_axis, Y=None):
     I2 = (2*C*T2[K] + B)*robust_sqrt(A + B*T2[K] + C*T2[K]**2)/(4*C) + DELTA/(8*C)*J2
     if Y is None:
         Y = np.zeros((t_axis.N, na))
-    Y[K] += ellipse.A * ellipse.a * ellipse.b / Z[K]**2 * (I2 - I1) * t_axis.N
+    Y[K] += ellipse.rho * ellipse.a * ellipse.b / Z[K]**2 * (I2 - I1) * t_axis.N
 
     return Y
 
@@ -178,7 +178,6 @@ def raster_ellipse(ellipse, regular_grid, doall=False, A=None, N=20):
     try:
         J1 = max(np.argwhere(regular_grid.axis_x.bounds[:-1] >= min_x)[0][0] - 1, 0)
         J2 = min(np.argwhere(regular_grid.axis_x.bounds[1:] <= max_x)[-1][0] + 1, regular_grid.axis_x.N - 1)
-regular_grid.axis_y.N - 1)
         I1 = min(np.argwhere(regular_grid.axis_y.bounds[::-1][1:] >= max_y)[-1][0] + 1, regular_grid.axis_y.N - 1)
         I2 = max(np.argwhere(regular_grid.axis_y.bounds[::-1][:-1] <= min_y)[0][0] - 1, 0)
     except IndexError:
@@ -203,7 +202,7 @@ regular_grid.axis_y.N - 1)
                            D[i + 1, j], D[i + 1, j + 1]]
             if (np.array(D_bounds_ij) <= 1).all():
                 # all 4 points bounding the pixel are contained inside the ellipse
-                A[A_i, A_j] += ellipse.A
+                A[A_i, A_j] += ellipse.rho
             elif (np.array(D_bounds_ij) <= 1).any():
                 # the pixel partially intersects with the ellipse
                 indicator_fun = lambda x: ellipse(x[0], x[1])
@@ -220,17 +219,23 @@ regular_grid.axis_y.N - 1)
 @dataclass
 class Ellipse:
     # Following convention in https://www.mathworks.com/help/images/ref/phantom.html
-    A: float    # Additive intensity value of the ellipse
-    a: float    # Length of the horizontal semiaxis of the ellipse
-    b: float    # Length of the vertical semiaxis of the ellipse
-    x0: float   # x-coordinate of the center of the ellipse
-    y0: float   # y-coordinate of the center of the ellipse
-    phi: float  # Angle (in degrees) between the horizontal semiaxis of the ellipse and the x-axis of the image
+    rho: float      # Additive intensity value of the ellipse
+    a: float        # Length of the horizontal semiaxis of the ellipse
+    b: float        # Length of the vertical semiaxis of the ellipse
+    x0: float       # x-coordinate of the center of the ellipse
+    y0: float       # y-coordinate of the center of the ellipse
+    phi_deg: float  # Angle (in degrees) between the horizontal semiaxis of the ellipse and the x-axis of the image
+
+    """
+    - A has units of density [mass] / [length]^2
+    - a, b, x0, and y0 are given in the unit of [length], but in the relative sense (not in the absolute sense of, e.g., m)
+    - phi_deg is in degrees
+    """
 
     def __post_init__(self):
         self.a_sq = self.a**2
         self.b_sq = self.b**2
-        self.phi_rad = np.radians(self.phi)
+        self.phi_rad = np.radians(self.phi_deg)
         self.cos_phi = np.cos(self.phi_rad)
         self.sin_phi = np.sin(self.phi_rad)
 
@@ -243,7 +248,7 @@ class Ellipse:
         try:
             return self._bounds
         except AttributeError:
-            self._bounds = get_ellipse_bb(self.x0, self.y0, self.a, self.b, self.phi)
+            self._bounds = get_ellipse_bb(self.x0, self.y0, self.a, self.b, self.phi_deg)
             return self.bounds
 
     def __call__(self, x, y):
@@ -254,7 +259,7 @@ class Ellipse:
         """
         x_prime = x - self.x0
         y_prime = y - self.y0
-        return ((x_prime*self.cos_phi + y_prime*self.sin_phi)**2 / self.a_sq + (y_prime*self.cos_phi - x_prime*self.sin_phi)**2 / self.b_sq <= 1) * self.A
+        return ((x_prime*self.cos_phi + y_prime*self.sin_phi)**2 / self.a_sq + (y_prime*self.cos_phi - x_prime*self.sin_phi)**2 / self.b_sq <= 1) * self.rho
 
     def raster(self, regular_grid, doall=False, A=None, N=20):
         """Return an image rasterization of the ellipse. (see
