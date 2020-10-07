@@ -214,8 +214,6 @@ def raster_ellipse(ellipse, regular_grid, doall=False, A=None, N=20):
     return A
 
 
-# CHANGE phi FIELD TO phi_deg
-# CHANGE A FIELD TO rho
 @dataclass
 class Ellipse:
     # Following convention in https://www.mathworks.com/help/images/ref/phantom.html
