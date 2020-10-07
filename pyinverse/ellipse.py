@@ -159,10 +159,18 @@ def ellipse_proj_rect(ellipse, thetas_deg, t_axis, Y=None):
     return Y
 
 
-# DOCUMENT FLIP --- DO MESHGRID TRICK
 def raster_ellipse(ellipse, regular_grid, doall=False, A=None, N=20):
+    """Return a rasterization, i.e., pixelization, of *ellipse* sampled at
+    the center points of *regular_grid*. Skip a bounding box
+    optimization if *doall* is set (the functionality has been
+    validated, but the override remains in case there is an
+    unconsidered edge case). If *A* is provided, accumulate the
+    rasterization in-place. Use a resolution of *N* to calculate
+    integrals over partial intersections (see
+    :func:`integrate_indicator_function`).
+
     """
-    """
+    # Note: every instance of [::-1] below is explained via (Note on flip)
     if A is None:
         A = np.zeros(regular_grid.shape)
     # find nonzero rows and cols
@@ -170,8 +178,9 @@ def raster_ellipse(ellipse, regular_grid, doall=False, A=None, N=20):
     try:
         J1 = max(np.argwhere(regular_grid.axis_x.bounds[:-1] >= min_x)[0][0] - 1, 0)
         J2 = min(np.argwhere(regular_grid.axis_x.bounds[1:] <= max_x)[-1][0] + 1, regular_grid.axis_x.N - 1)
-        I1 = max(np.argwhere(regular_grid.axis_y.bounds[:-1] >= min_y)[0][0] - 1, 0)
-        I2 = min(np.argwhere(regular_grid.axis_y.bounds[1:] <= max_y)[-1][0] + 1, regular_grid.axis_y.N - 1)
+regular_grid.axis_y.N - 1)
+        I1 = min(np.argwhere(regular_grid.axis_y.bounds[::-1][1:] >= max_y)[-1][0] + 1, regular_grid.axis_y.N - 1)
+        I2 = max(np.argwhere(regular_grid.axis_y.bounds[::-1][:-1] <= min_y)[0][0] - 1, 0)
     except IndexError:
         # ellipse is outside the raster window --- return the 0 matrix
         return A
@@ -184,27 +193,25 @@ def raster_ellipse(ellipse, regular_grid, doall=False, A=None, N=20):
 
     # Determine if corners of each pixel are contained inside the ellipse.
     X, Y = np.meshgrid(regular_grid.axis_x.bounds[J1:J2+2] - ellipse.x0,
-                       (regular_grid.axis_y.bounds[I1:I2+2] - ellipse.y0))
+                       regular_grid.axis_y.bounds[::-1][I1:I2+2] - ellipse.y0)
     D = (X*ellipse.cos_phi + Y*ellipse.sin_phi)**2 / ellipse.a_sq + (Y*ellipse.cos_phi - X*ellipse.sin_phi)**2 / ellipse.b_sq
 
     n_rows = A.shape[0]
-    for index_i, i in enumerate(range(I1, I2 + 1)):
-        for index_j, j in enumerate(range(J1, J2 + 1)):
-            D_bounds_ij = [D[index_i, index_j],
-                           D[index_i, index_j + 1],
-                           D[index_i + 1, index_j],
-                           D[index_i + 1, index_j + 1]]
+    for i, A_i in enumerate(range(I1, I2 + 1)):
+        for j, A_j in enumerate(range(J1, J2 + 1)):
+            D_bounds_ij = [D[i, j], D[i, j + 1],
+                           D[i + 1, j], D[i + 1, j + 1]]
             if (np.array(D_bounds_ij) <= 1).all():
                 # all 4 points bounding the pixel are contained inside the ellipse
-                A[(n_rows - 1) - i, j] += ellipse.A
+                A[A_i, A_j] += ellipse.A
             elif (np.array(D_bounds_ij) <= 1).any():
                 # the pixel partially intersects with the ellipse
                 indicator_fun = lambda x: ellipse(x[0], x[1])
-                bounds = [regular_grid.axis_x.bounds[j],
-                          regular_grid.axis_x.bounds[j+1],
-                          regular_grid.axis_y.bounds[i],
-                          regular_grid.axis_y.bounds[i+1]]
-                A[(n_rows - 1) - i, j] += integrate_indicator_function(indicator_fun, bounds, N=N)
+                bounds = [regular_grid.axis_x.bounds[A_j],
+                          regular_grid.axis_x.bounds[A_j+1],
+                          regular_grid.axis_y.bounds[::-1][A_i],
+                          regular_grid.axis_y.bounds[::-1][A_i+1]]
+                A[A_i, A_j] += integrate_indicator_function(indicator_fun, bounds, N=N)
     return A
 
 
