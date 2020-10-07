@@ -44,6 +44,13 @@ class Ellipse:
     y0: float   # y-coordinate of the center of the ellipse
     phi: float  # Angle (in degrees) between the horizontal semiaxis of the ellipse and the x-axis of the image
 
+    def __post_init__(self):
+        self.a_sq = self.a**2
+        self.b_sq = self.b**2
+        self.phi_rad = np.radians(self.phi)
+        self.cos_phi = np.cos(self.phi_rad)
+        self.sin_phi = np.sin(self.phi_rad)
+
     @property
     def bounds(self):
         try:
@@ -51,6 +58,20 @@ class Ellipse:
         except AttributeError:
             self._bounds = get_ellipse_bb(self.x0, self.y0, self.a, self.b, self.phi)
             return self.bounds
+
+    def __call__(self, x, y):
+        x_prime = x - self.x0
+        y_prime = y - self.y0
+        return ((x_prime*self.cos_phi + y_prime*self.sin_phi)**2 / self.a_sq + (y_prime*self.cos_phi - x_prime*self.sin_phi)**2 / self.b_sq <= 1) * self.A
+
+
+def integrate_indicator_function(indicator_fun, bounds, N=20):
+    """
+    """
+    min_x, max_x, min_y, max_y = bounds
+    X, Y = np.meshgrid(np.linspace(min_x, max_x, N),
+                       np.linspace(min_y, max_y, N))
+    return sum([indicator_fun((x, y)) for x, y in zip(X.flat, Y.flat)]) / N**2
 
 
 def raster_ellipse(e, regular_grid, oversample=2, doall=False):
@@ -66,28 +87,46 @@ def raster_ellipse(e, regular_grid, oversample=2, doall=False):
         I1 = max(np.argwhere(grid2.axis_y.bounds[:-1] >= min_y)[0][0] - 1, 0)
         I2 = min(np.argwhere(grid2.axis_y.bounds[1:] <= max_y)[-1][0] + 1, grid2.axis_y.N - 1)
     except IndexError:
-        # ellipse is outside the raster window
-        return A[::oversample, ::oversample]
+        # ellipse is outside the raster window --- return the 0 matrix
+        return A
 
     if doall:
-        I1 = 0
-        I2 = grid2.axis_y.N
-
         J1 = 0
-        J2 = grid2.axis_x.N
+        J2 = grid2.axis_x.N - 1
+        I1 = 0
+        I2 = grid2.axis_y.N - 1
 
-    a_sq = e.a**2
-    b_sq = e.b**2
+    X, Y = np.meshgrid(grid2.axis_x.bounds[J1:J2+2] - e.x0,
+                       (grid2.axis_y.bounds[I1:I2+2] - e.y0))
+    D = (X*e.cos_phi + Y*e.sin_phi)**2 / e.a_sq + (Y*e.cos_phi - X*e.sin_phi)**2 / e.b_sq
 
-    phi_rad = np.radians(e.phi)
-    cos_phi = np.cos(phi_rad)
-    sin_phi = np.sin(phi_rad)
+    for index_i, i in enumerate(range(I1, I2 + 1)):
+        for index_j, j in enumerate(range(J1, J2 + 1)):
+            D_bounds_ij = [D[index_i, index_j],
+                           D[index_i, index_j + 1],
+                           D[index_i + 1, index_j],
+                           D[index_i + 1, index_j + 1]]
+            if (np.array(D_bounds_ij) <= 1).all():
+                # all 4 points bounding the pixel are contained inside the ellipse
+                A[i, j] += e.A * grid2.axis_x.T * grid2.axis_y.T
+            elif (np.array(D_bounds_ij) <= 1).any():
+                # the pixel partially intersects with the ellipse
+                indicator_fun = lambda x: e(x[0], x[1])
+                bounds = [grid2.axis_x.bounds[j],
+                          grid2.axis_x.bounds[j+1],
+                          grid2.axis_y.bounds[i],
+                          grid2.axis_y.bounds[i+1]]
+                I = integrate_indicator_function(indicator_fun, bounds)
+                A[i, j] += I * e.A * grid2.axis_x.T * grid2.axis_y.T
 
-    X, Y = np.meshgrid(grid2.axis_x[J1:J2+1] - e.x0,
-                       (grid2.axis_y[I1:I2+1] - e.y0))
+    # Why the flip? A has been constructed row by row, starting from
+    # row 0. As the code is written, row 0 of A is associated with
+    # element 0 of grid.axis_y --- the smallest (bottom-most) vertical
+    # coordinate. However, the typical convention is origin=upper
+    # (using the terminology adopted in the documentation for the
+    # Matplotlib imshow function), i.e., that element [0,0]
+    # corresponds to the upper left corner of the axis (the
+    # alternative convention of origin=lower places element [0,0] to
+    # the lower left corer of the axis).
 
-    D = (X * cos_phi + Y * sin_phi)**2 / a_sq + (Y * cos_phi - X * sin_phi)**2 / b_sq
-    I = np.where(D <= 1)
-
-    A[I1:I2+1, J1:J2+1][I] += e.A
-    return A
+    return A[::-1, :]
