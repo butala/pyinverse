@@ -36,6 +36,8 @@ def get_ellipse_bb(x, y, major, minor, angle_deg):
     return min_x, min_y, max_x, max_y
 
 
+# COULD DO THIS BETTER --- FIND POINTS OF INTERSECTION, FIT A
+# POLYNOMIAL DEPENDING ON INTERSECTION TYPE, AND THEN INTEGRATE
 def integrate_indicator_function(indicator_fun, bounds, N=20):
     """
     """
@@ -45,6 +47,7 @@ def integrate_indicator_function(indicator_fun, bounds, N=20):
     return sum([indicator_fun((x, y)) for x, y in zip(X.flat, Y.flat)]) / N**2
 
 
+# METHODS ARE TOO COMPLICATED!
 @dataclass
 class Ellipse:
     # Following convention in https://www.mathworks.com/help/images/ref/phantom.html
@@ -64,6 +67,9 @@ class Ellipse:
 
     @property
     def bounds(self):
+        """
+        Avoid this calculation unless requested.
+        """
         try:
             return self._bounds
         except AttributeError:
@@ -71,6 +77,8 @@ class Ellipse:
             return self.bounds
 
     def __call__(self, x, y):
+        """
+        """
         x_prime = x - self.x0
         y_prime = y - self.y0
         return ((x_prime*self.cos_phi + y_prime*self.sin_phi)**2 / self.a_sq + (y_prime*self.cos_phi - x_prime*self.sin_phi)**2 / self.b_sq <= 1) * self.A
@@ -121,6 +129,9 @@ class Ellipse:
                               regular_grid.axis_y.bounds[i+1]]
                     A[(n_rows - 1) - i, j] += integrate_indicator_function(indicator_fun, bounds, N=N)
 
+        # INSTEAD OF FLIPPED ROW INDEXING, CAN YOU INSTEAD USE
+        # MESHGRID FLIP AS USED IN projection METHOD?
+
         # Why the flipped row indexing, i.e., why do we index via (n_rows
         # - 1) - i and not i? As the code is written, row 0 of A is
         # associated with element 0 of grid.axis_y --- the smallest
@@ -147,11 +158,13 @@ class Ellipse:
     def projection(self, thetas, t_axis, rect=False, y=None):
         """
         """
-        thetas_rad = np.radians(thetas)
+        # EXPLAIN SHIFT!!!
+        thetas_rad = np.radians((thetas + 90) % 360)
         if rect:
             pass
         else:
-            THETA, T = np.meshgrid(thetas_rad, t_axis.centers)
+            # EXPLAIN FLIP!!!
+            THETA, T = np.meshgrid(thetas_rad, t_axis.centers[::-1])
             gamma = np.arctan2(self.y0, self.x0)
             s = np.sqrt(self.x0**2 + self.y0**2)
             TAU = T - s * np.cos(gamma - THETA)
