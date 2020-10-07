@@ -76,3 +76,11 @@ class Phantom:
         for e in self._ellipses:
             A = e.raster(regular_grid, A=A)
         return A
+
+    def projection(self, thetas, t_axis, rect=False):
+        """
+        """
+        y = np.zeros((len(thetas), t_axis.N))
+        for e in self._ellipses:
+            t = e.projection(thetas, t_axis, rect=rect, y=y)
+        return y

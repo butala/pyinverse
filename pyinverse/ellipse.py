@@ -132,3 +132,33 @@ class Ellipse:
         # to the lower left corer of the axis).
 
         return A
+
+    def fourier_transform(self, fx, fy):
+        """
+        """
+        pass
+
+    def fourier_transform_grid(self, regular_grid):
+        """
+        """
+        pass
+
+    # DOUBLE CHECK FLIP CONVENTION origin=upper!!!
+    def projection(self, thetas, t_axis, rect=False, y=None):
+        """
+        """
+        thetas_rad = np.radians(thetas)
+        if rect:
+            pass
+        else:
+            THETA, T = np.meshgrid(thetas_rad, t_axis.centers)
+            gamma = np.arctan2(self.y0, self.x0)
+            s = np.sqrt(self.x0**2 + self.y0**2)
+            TAU = T - s * np.cos(gamma - THETA)
+            BETA = THETA - self.phi_rad
+            ALPHA = np.sqrt(self.a**2 * np.cos(BETA)**2 + self.b**2 * np.sin(BETA)**2)
+            I = abs(TAU) <= ALPHA
+            if y is None:
+                y = np.zeros_like(THETA)
+            y[I] += 2 * self.A * self.a * self.b / ALPHA[I]**2 * np.sqrt(ALPHA[I]**2 - TAU[I]**2)
+            return y
