@@ -6,7 +6,7 @@ import scipy.fft
 
 
 @dataclass
-class Regular:
+class RegularAxis:
     x0: float
     T:  float
     N:  int
@@ -35,7 +35,7 @@ class Regular:
 
 
 @dataclass(init=False)
-class FFTRegular(Regular):
+class FFTRegularAxis(RegularAxis):
     def __init__(self, N, d=1/(2*math.pi)):
         if N % 2 == 0:
             x0 = -1/(2*d)
@@ -45,15 +45,15 @@ class FFTRegular(Regular):
 
 
 @dataclass(init=False)
-class RFFTRegular(Regular):
+class RFFTRegularAxis(RegularAxis):
     def __init__(self, N, d=1/(2*math.pi)):
         super().__init__(0, 1/(d*N), N//2+1)
 
 
 @dataclass
 class RegularGrid:
-    axis_x: Regular
-    axis_y: Regular
+    axis_x: RegularAxis
+    axis_y: RegularAxis
 
     @property
     def shape(self):
@@ -65,7 +65,7 @@ class RegularGrid:
 
 
 def oversample_regular(regular, oversample):
-    return Regular(regular.x0, regular.T/oversample, regular.N*oversample)
+    return RegularAxis(regular.x0, regular.T/oversample, regular.N*oversample)
 
 
 def oversample_regular_grid(regular_grid, oversample):
