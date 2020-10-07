@@ -74,5 +74,5 @@ class Phantom:
         """
         A = np.zeros(regular_grid.shape)
         for e in self._ellipses:
-            A = raster_ellipse(e, regular_grid, oversample=1, A=A)
+            A = raster_ellipse(e, regular_grid, A=A)
         return A
