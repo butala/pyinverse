@@ -1,9 +1,8 @@
 from dataclasses import dataclass
+import math
 
 import numpy as np
 import scipy.signal
-
-from .grid import oversample_regular_grid
 
 
 # https://gist.github.com/smidm/b398312a13f60c24449a2c7533877dc0
@@ -47,7 +46,98 @@ def integrate_indicator_function(indicator_fun, bounds, N=20):
     return sum([indicator_fun((x, y)) for x, y in zip(X.flat, Y.flat)]) / N**2
 
 
+
+# DOCUMENT USE OF np.isclose INSTEAD OF math.isclose
+def robust_scalar_arcsin(x):
+    """ ??? """
+    try:
+        return math.asin(x)
+    except ValueError:
+        if x > 1:
+            assert np.isclose(x, 1)
+            return math.pi / 2
+        if x < -1:
+            assert np.isclose(x, -1)
+            return -math.pi / 2
+        raise
+
+def robust_scalar_sqrt(x):
+    """ ??? """
+    try:
+        return math.sqrt(x)
+    except ValueError:
+        if x < 0:
+            assert np.isclose(x, 0)
+            return 0.0
+        raise
+
+robust_arcsin = np.vectorize(robust_scalar_arcsin)
+robust_sqrt = np.vectorize(robust_scalar_sqrt)
+
+
+def ellipse_proj_rect(spec, thetas_deg, t_axis, Y=None):
+    """ ??? """
+    na = len(thetas_deg)
+
+    thetas_rad = np.radians(thetas_deg)
+    #t_center = fft_samples(np)
+    #t_bound = get_bounds(t_center)
+
+    # t_center = t_axis.centers
+    # t_bound = t_axis.bounds
+
+    # EXPLAIN FLIP!!!
+    t_center = t_axis.centers[::-1]
+    t_bound = t_axis.bounds[::-1]
+
+    THETA, T = np.meshgrid(thetas_rad, t_center)
+
+    ti = t_bound[:-1]
+    ti.shape = t_axis.N, 1
+    ti_plus_one = t_bound[1:]
+    ti_plus_one.shape = t_axis.N, 1
+    T1 = np.tile(ti, (1, na))
+    T2 = np.tile(ti_plus_one, (1, na))
+    T1, T2 = T2, T1
+
+    #phi_rad = math.radians(spec.phi_deg)
+    phi_rad = math.radians(spec.phi)
+    ALPHA = THETA - phi_rad
+    s = math.sqrt(spec.x0**2 + spec.y0**2)
+    gamma = math.atan2(spec.y0, spec.x0)
+    TAU = s * np.cos(gamma - THETA)
+
+    Z = np.sqrt(spec.a**2 * np.cos(ALPHA)**2 + spec.b**2 * np.sin(ALPHA)**2)
+
+    B1 = TAU - Z
+    B2 = TAU + Z
+
+    K = np.logical_and(T1 <= B2, T2 >= B1)
+
+    T1[T1 < B1] = B1[T1 < B1]
+    T2[T2 > B2] = B2[T2 > B2]
+
+    A = Z[K]**2 - TAU[K]**2
+    B = 2*TAU[K]
+    C = -1
+
+    DELTA = 4 * A * C - B**2
+
+    J1 = -1 * robust_arcsin((2*C*T1[K] + B)/robust_sqrt(-DELTA))
+    I1 = (2*C*T1[K] + B)*robust_sqrt(A + B*T1[K] + C*T1[K]**2)/(4*C) + DELTA/(8*C)*J1
+
+    J2 = -1 * robust_arcsin((2*C*T2[K] + B)/robust_sqrt(-DELTA))
+    I2 = (2*C*T2[K] + B)*robust_sqrt(A + B*T2[K] + C*T2[K]**2)/(4*C) + DELTA/(8*C)*J2
+    if Y is None:
+        Y = np.zeros((t_axis.N, na))
+    Y[K] += spec.A * spec.a * spec.b / Z[K]**2 * (I2 - I1) * t_axis.N
+
+    return Y
+
+
 # METHODS ARE TOO COMPLICATED!
+# CHANGE phi FIELD TO phi_deg
+# CHANGE A FIELD TO rho
 @dataclass
 class Ellipse:
     # Following convention in https://www.mathworks.com/help/images/ref/phantom.html
@@ -154,14 +244,17 @@ class Ellipse:
         """
         pass
 
-    # DOUBLE CHECK FLIP CONVENTION origin=upper!!!
-    def projection(self, thetas, t_axis, rect=False, y=None):
+    # RENAME thetas TO thetas_deg
+    def projection(self, thetas, t_axis, rect=False, Y=None):
         """
         """
-        # EXPLAIN SHIFT!!!
-        thetas_rad = np.radians((thetas + 90) % 360)
+        if Y is None:
+            Y = np.zeros((t_axis.N, len(thetas)))
+
+        thetas_rad = np.radians(thetas % 360)
+
         if rect:
-            pass
+            ellipse_proj_rect(self, thetas, t_axis, Y=Y)
         else:
             # EXPLAIN FLIP!!!
             THETA, T = np.meshgrid(thetas_rad, t_axis.centers[::-1])
@@ -171,7 +264,5 @@ class Ellipse:
             BETA = THETA - self.phi_rad
             ALPHA = np.sqrt(self.a**2 * np.cos(BETA)**2 + self.b**2 * np.sin(BETA)**2)
             I = abs(TAU) <= ALPHA
-            if y is None:
-                y = np.zeros_like(THETA)
-            y[I] += 2 * self.A * self.a * self.b / ALPHA[I]**2 * np.sqrt(ALPHA[I]**2 - TAU[I]**2)
-            return y
+            Y[I] += 2 * self.A * self.a * self.b / ALPHA[I]**2 * np.sqrt(ALPHA[I]**2 - TAU[I]**2)
+        return Y
