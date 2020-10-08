@@ -54,16 +54,6 @@ def integrate_indicator_function(indicator_fun, bounds, N=20):
     return sum([indicator_fun((x, y)) for x, y in zip(X.flat, Y.flat)]) / N**2
 
 
-# (Note on flip) Why the flipped row indexing, i.e., why do we [::-1] of coordinates
-# in calls to numpy.meshgrid below? As the code is written, row 0 of A
-# is associated with element 0 of grid.axis_y --- the smallest
-# (bottom-most) vertical coordinate. However, the typical convention
-# is origin=upper (using the terminology adopted in the documentation
-# for the Matplotlib imshow function), i.e., that element [0,0]
-# corresponds to the upper left corner of the axis (the alternative
-# convention of origin=lower places element [0,0] to the lower left
-# corer of the axis).
-
 def ellipse_proj(ellipse, thetas_deg, t_axis, Y=None):
     """Calculate line integrals (from analytic expression) of *ellipse* at
     angles specified in *thetas_deg* (in degrees) and *t_axis*
@@ -72,9 +62,8 @@ def ellipse_proj(ellipse, thetas_deg, t_axis, Y=None):
     accumulate the sinogram in-place.
 
     """
-    # See (Note on flip)
     thetas_rad = np.radians(thetas_deg)
-    THETA, T = np.meshgrid(thetas_rad, t_axis.centers[::-1])
+    THETA, T = np.meshgrid(thetas_rad, t_axis.centers)
     gamma = np.arctan2(ellipse.y0, ellipse.x0)
     s = np.sqrt(ellipse.x0**2 + ellipse.y0**2)
     TAU = T - s * np.cos(gamma - THETA)
@@ -111,21 +100,17 @@ def ellipse_proj_rect(ellipse, thetas_deg, t_axis, Y=None):
     na = len(thetas_deg)
     thetas_rad = np.radians(thetas_deg)
 
-    # See (Note on flip)
-    t_center = t_axis.centers[::-1]
-    t_borders = t_axis.borders[::-1]
+    t_center = t_axis.centers
+    t_borders = t_axis.borders
 
     THETA, T = np.meshgrid(thetas_rad, t_center)
 
-    ti = t_bound[:-1]
+    ti = t_borders[:-1]
     ti.shape = t_axis.N, 1
-    ti_plus_one = t_bound[1:]
+    ti_plus_one = t_borders[1:]
     ti_plus_one.shape = t_axis.N, 1
     T1 = np.tile(ti, (1, na))
     T2 = np.tile(ti_plus_one, (1, na))
-
-    # See (Note on flip)
-    T1, T2 = T2, T1
 
     phi_rad = math.radians(ellipse.phi_deg)
     ALPHA = THETA - phi_rad
@@ -172,7 +157,6 @@ def ellipse_raster(ellipse, regular_grid, doall=False, A=None, N=20):
     :func:`integrate_indicator_function`).
 
     """
-    # Note: every instance of [::-1] below is explained via (Note on flip)
     if A is None:
         A = np.zeros(regular_grid.shape)
     # find nonzero rows and cols
@@ -180,8 +164,8 @@ def ellipse_raster(ellipse, regular_grid, doall=False, A=None, N=20):
     try:
         J1 = max(np.argwhere(regular_grid.axis_x.borders[:-1] >= min_x)[0][0] - 1, 0)
         J2 = min(np.argwhere(regular_grid.axis_x.borders[1:] <= max_x)[-1][0] + 1, regular_grid.axis_x.N - 1)
-        I1 = min(np.argwhere(regular_grid.axis_y.borders[::-1][1:] >= max_y)[-1][0] + 1, regular_grid.axis_y.N - 1)
-        I2 = max(np.argwhere(regular_grid.axis_y.borders[::-1][:-1] <= min_y)[0][0] - 1, 0)
+        I1 = max(np.argwhere(regular_grid.axis_y.borders[:-1] >= min_y)[0][0] - 1, 0)
+        I2 = min(np.argwhere(regular_grid.axis_y.borders[1:] <= max_y)[-1][0] + 1, regular_grid.axis_y.N - 1)
     except IndexError:
         # ellipse is outside the raster window --- return the 0 matrix
         return A
@@ -194,7 +178,7 @@ def ellipse_raster(ellipse, regular_grid, doall=False, A=None, N=20):
 
     # Determine if corners of each pixel are contained inside the ellipse.
     X, Y = np.meshgrid(regular_grid.axis_x.borders[J1:J2+2] - ellipse.x0,
-                       regular_grid.axis_y.borders[::-1][I1:I2+2] - ellipse.y0)
+                       regular_grid.axis_y.borders[I1:I2+2] - ellipse.y0)
     D = (X*ellipse.cos_phi + Y*ellipse.sin_phi)**2 / ellipse.a_sq + (Y*ellipse.cos_phi - X*ellipse.sin_phi)**2 / ellipse.b_sq
 
     n_rows = A.shape[0]
@@ -210,8 +194,8 @@ def ellipse_raster(ellipse, regular_grid, doall=False, A=None, N=20):
                 indicator_fun = lambda x: ellipse(x[0], x[1])
                 bounds = [regular_grid.axis_x.borders[A_j],
                           regular_grid.axis_x.borders[A_j+1],
-                          regular_grid.axis_y.borders[::-1][A_i],
-                          regular_grid.axis_y.borders[::-1][A_i+1]]
+                          regular_grid.axis_y.borders[A_i],
+                          regular_grid.axis_y.borders[A_i+1]]
                 A[A_i, A_j] += integrate_indicator_function(indicator_fun, bounds, N=N)
     return A
 
