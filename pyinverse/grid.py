@@ -21,7 +21,7 @@ class RegularAxis:
 
     def __post_init__(self):
         self._centers = self.x0 + np.arange(self.N, dtype=np.float) * self.T
-        self._bounds = self.x0 - self.T/2 + np.arange(self.N + 1, dtype=np.float) * self.T
+        self._borders = self.x0 - self.T/2 + np.arange(self.N + 1, dtype=np.float) * self.T
 
     @property
     def centers(self):
@@ -29,9 +29,9 @@ class RegularAxis:
         return self._centers
 
     @property
-    def bounds(self):
+    def borders(self):
         """Return locations of edges between sample points."""
-        return self._bounds
+        return self._borders
 
     def __iter__(self):
         """Return iterator over sample points."""
@@ -44,12 +44,6 @@ class RegularAxis:
     def __len__(self):
         """Return the number of sample points."""
         return self.N
-
-    @property
-    def extent(self):
-        """Return the axis bounds, i.e., the tuple of left edge of the start
-point *x0* and the right edge of the last point."""
-        return self.bounds[0], self.bounds[-1]
 
 
 @dataclass(init=False)
@@ -100,10 +94,31 @@ class RegularGrid:
         """Return the tuple with the number of vertical and horizontal sample points."""
         return self.axis_y.N, self.axis_x.N
 
-    @property
-    def extent(self):
-        """Return the grid extent in bounding box format (see :func:`pyinverse.ellipse.get_ellipse_bb`)."""
-        return self.axis_x.extent + self.axis_y.extent
+    def imshow(self, ax, X, interpolation='none', **kwds):
+        """Display the 2-D array *X* as an image on axis *ax* taking into
+        account the grid orientation. Additional arguments *kwds* are
+        passed to :func:`imshow`.
+
+        For details: https://matplotlib.org/3.3.1/tutorials/intermediate/imshow_extent.html
+
+        """
+        if self.axis_x.borders[0] > self.axis_x.borders[-1]:
+            # did not implement case with flipped horizontal axis as it would be pretty non-standard --- we could do it, but it will never show up in practice
+            raise NotImplementedError('flipped horizontal axis (decreasing from left to right)')
+        if self.axis_y.borders[0] > self.axis_y.borders[-1]:
+            # row 0 of X corresponds to the smallest y coordinate
+            origin = 'lower'
+        else:
+            # row 0 of X corresponds to the largest y coordinate
+            origin = 'upper'
+        assert self.shape == X.shape
+        assert 'origin' not in kwds
+        kwds['origin'] = origin
+        assert 'extent' not in kwds
+        x_extent = [self.axis_x.borders[0], self.axis_x.borders[-1]]
+        y_extent = sorted([self.axis_y.borders[0], self.axis_y.borders[-1]])
+        kwds['extent'] = x_extent + y_extent
+        return ax.imshow(X, interpolation=interpolation, **kwds)
 
 
 def oversample_regular_axis(regular, oversample):
