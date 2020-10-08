@@ -113,7 +113,7 @@ def ellipse_proj_rect(ellipse, thetas_deg, t_axis, Y=None):
 
     # See (Note on flip)
     t_center = t_axis.centers[::-1]
-    t_bound = t_axis.bounds[::-1]
+    t_borders = t_axis.borders[::-1]
 
     THETA, T = np.meshgrid(thetas_rad, t_center)
 
@@ -178,10 +178,10 @@ def ellipse_raster(ellipse, regular_grid, doall=False, A=None, N=20):
     # find nonzero rows and cols
     min_x, min_y, max_x, max_y = ellipse.bounds
     try:
-        J1 = max(np.argwhere(regular_grid.axis_x.bounds[:-1] >= min_x)[0][0] - 1, 0)
-        J2 = min(np.argwhere(regular_grid.axis_x.bounds[1:] <= max_x)[-1][0] + 1, regular_grid.axis_x.N - 1)
-        I1 = min(np.argwhere(regular_grid.axis_y.bounds[::-1][1:] >= max_y)[-1][0] + 1, regular_grid.axis_y.N - 1)
-        I2 = max(np.argwhere(regular_grid.axis_y.bounds[::-1][:-1] <= min_y)[0][0] - 1, 0)
+        J1 = max(np.argwhere(regular_grid.axis_x.borders[:-1] >= min_x)[0][0] - 1, 0)
+        J2 = min(np.argwhere(regular_grid.axis_x.borders[1:] <= max_x)[-1][0] + 1, regular_grid.axis_x.N - 1)
+        I1 = min(np.argwhere(regular_grid.axis_y.borders[::-1][1:] >= max_y)[-1][0] + 1, regular_grid.axis_y.N - 1)
+        I2 = max(np.argwhere(regular_grid.axis_y.borders[::-1][:-1] <= min_y)[0][0] - 1, 0)
     except IndexError:
         # ellipse is outside the raster window --- return the 0 matrix
         return A
@@ -193,8 +193,8 @@ def ellipse_raster(ellipse, regular_grid, doall=False, A=None, N=20):
         I2 = regular_grid.axis_y.N - 1
 
     # Determine if corners of each pixel are contained inside the ellipse.
-    X, Y = np.meshgrid(regular_grid.axis_x.bounds[J1:J2+2] - ellipse.x0,
-                       regular_grid.axis_y.bounds[::-1][I1:I2+2] - ellipse.y0)
+    X, Y = np.meshgrid(regular_grid.axis_x.borders[J1:J2+2] - ellipse.x0,
+                       regular_grid.axis_y.borders[::-1][I1:I2+2] - ellipse.y0)
     D = (X*ellipse.cos_phi + Y*ellipse.sin_phi)**2 / ellipse.a_sq + (Y*ellipse.cos_phi - X*ellipse.sin_phi)**2 / ellipse.b_sq
 
     n_rows = A.shape[0]
@@ -208,10 +208,10 @@ def ellipse_raster(ellipse, regular_grid, doall=False, A=None, N=20):
             elif (np.array(D_bounds_ij) <= 1).any():
                 # the pixel partially intersects with the ellipse
                 indicator_fun = lambda x: ellipse(x[0], x[1])
-                bounds = [regular_grid.axis_x.bounds[A_j],
-                          regular_grid.axis_x.bounds[A_j+1],
-                          regular_grid.axis_y.bounds[::-1][A_i],
-                          regular_grid.axis_y.bounds[::-1][A_i+1]]
+                bounds = [regular_grid.axis_x.borders[A_j],
+                          regular_grid.axis_x.borders[A_j+1],
+                          regular_grid.axis_y.borders[::-1][A_i],
+                          regular_grid.axis_y.borders[::-1][A_i+1]]
                 A[A_i, A_j] += integrate_indicator_function(indicator_fun, bounds, N=N)
     return A
 
