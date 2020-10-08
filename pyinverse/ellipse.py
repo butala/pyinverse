@@ -7,7 +7,7 @@ import scipy.signal
 from .util import robust_arcsin, robust_sqrt
 
 
-def get_ellipse_bb(x, y, major, minor, angle_deg):
+def ellipse_bb(x, y, major, minor, angle_deg):
     """
     Compute tight ellipse bounding box for the ellipse centered at (*x*, *y*), with major and minor axes lengths of *major* and *minor*, and rotated CCW by *angle_deg* (in degrees). Return the tuple `(min_x, min_y, max_x, max_y)`.
 
@@ -87,6 +87,8 @@ def ellipse_proj(ellipse, thetas_deg, t_axis, Y=None):
     return Y
 
 
+# WHY ISN'T BEAM WIDTH A PARAMETER? Or, is this implicit and
+# controllable in how t_axis is chosen?
 def ellipse_proj_rect(ellipse, thetas_deg, t_axis, Y=None):
     """Calculate "beam" integrals (from analytic expression) of *ellipse*
     at angles specified in *thetas_deg* (in degrees) and *t_axis*
@@ -159,7 +161,7 @@ def ellipse_proj_rect(ellipse, thetas_deg, t_axis, Y=None):
     return Y
 
 
-def raster_ellipse(ellipse, regular_grid, doall=False, A=None, N=20):
+def ellipse_raster(ellipse, regular_grid, doall=False, A=None, N=20):
     """Return a rasterization, i.e., pixelization, of *ellipse* sampled at
     the center points of *regular_grid*. Skip a bounding box
     optimization if *doall* is set (the functionality has been
@@ -239,14 +241,14 @@ class Ellipse:
 
     @property
     def bounds(self):
-        """Return the ellipse bounding box. (See :func:`get_ellipse_bb`).
+        """Return the ellipse bounding box. (See :func:`ellipse_bb`).
 
         """
         # Avoid bounding box calculation unless requested.
         try:
             return self._bounds
         except AttributeError:
-            self._bounds = get_ellipse_bb(self.x0, self.y0, self.a, self.b, self.phi_deg)
+            self._bounds = ellipse_bb(self.x0, self.y0, self.a, self.b, self.phi_deg)
             return self.bounds
 
     def __call__(self, x, y):
@@ -261,10 +263,10 @@ class Ellipse:
 
     def raster(self, regular_grid, doall=False, A=None, N=20):
         """Return an image rasterization of the ellipse. (see
-        :func:`raster_ellipse`).
+        :func:`ellipse_raster`).
 
         """
-        return raster_ellipse(self, regular_grid, doall=doall, A=A, N=N)
+        return ellipse_raster(self, regular_grid, doall=doall, A=A, N=N)
 
     def fourier_transform(self, fx, fy):
         """
