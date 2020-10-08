@@ -107,10 +107,10 @@ class RegularGrid:
             raise NotImplementedError('flipped horizontal axis (decreasing from left to right)')
         if self.axis_y.borders[0] > self.axis_y.borders[-1]:
             # row 0 of X corresponds to the smallest y coordinate
-            origin = 'lower'
+            origin = 'upper'
         else:
             # row 0 of X corresponds to the largest y coordinate
-            origin = 'upper'
+            origin = 'lower'
         assert self.shape == X.shape
         assert 'origin' not in kwds
         kwds['origin'] = origin
