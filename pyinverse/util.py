@@ -1,6 +1,21 @@
 import math
 
 import numpy as np
+import scipy.special
+
+
+def besinc(x):
+    """The sombrero, jinc, or besinc function
+    (https://en.wikipedia.org/wiki/Sombrero_function --- note this
+    implementation omits the factor 2).
+
+    """
+    y = np.empty_like(x)
+    I = np.where(x != 0)
+    y[I] = scipy.special.j1(np.pi * x[I]) / (np.pi * x[I])
+    J = np.where(x == 0)
+    y[J] = np.pi / 2
+    return y
 
 
 """
@@ -23,10 +38,10 @@ def robust_scalar_arcsin(x):
     except ValueError:
         if x > 1:
             assert np.isclose(x, 1)
-            return math.pi / 2
+            return np.pi / 2
         if x < -1:
             assert np.isclose(x, -1)
-            return -math.pi / 2
+            return -np.pi / 2
         raise
 
 def robust_scalar_sqrt(x):
