@@ -41,6 +41,10 @@ class RegularAxis:
         """Return the kth sample point."""
         return self.centers[k]
 
+    def __len__(self):
+        """Return the number of sample points."""
+        return self.N
+
     @property
     def extent(self):
         """Return the axis bounds, i.e., the tuple of left edge of the start
