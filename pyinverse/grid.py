@@ -45,17 +45,56 @@ class RegularAxis:
         """Return the number of sample points."""
         return self.N
 
+    def dft(self, x, zero_pad=True, **kwds):
+        """
+        """
+        if zero_pad:
+            N_fast = scipy.fft.next_fast_len(self.N)
+        else:
+            N_fast = self.N
+        X_DFT = scipy.fft.fftshift(scipy.fft.fft(x, n=N_fast))
+        omega_axis = FFTRegularAxis(N_fast, d=1/(2*math.pi))
+        omega_axis._N_before_zero_pad = self.N
+        return omega_axis, X_DFT
+
+    def ft(self, x, **kwds):
+        """
+        """
+        omega_axis, X_DFT = self.dft(x, **kwds)
+        f_axis = FFTRegularAxis(omega_axis.N, d=self.T)
+        X_FT = X_DFT*self.T * np.exp(-1j*2*np.pi*self[0]*f_axis.centers)
+        f_axis._delta_t = self[0]
+        f_axis._N_before_zero_pad = omega_axis._N_before_zero_pad
+        return f_axis, X_FT
+
+    def idft(self, X_dft, **kwds):
+        """
+        """
+        x = scipy.fft.ifft(scipy.fft.ifftshift(X_dft))
+        N = getattr(self, '_N_before_zero_pad', self.N)
+        n_axis = RegularAxis(0, 1, N)
+        return n_axis, x[:N]
+
+    def ift(self, X_ft, **kwds):
+        """
+        """
+        t_axis_T = (1/self.T)/self.N
+        X_dft = X_ft/t_axis_T * np.exp(1j*2*np.pi*self._delta_t*self.centers)
+        n_axis, x = self.idft(X_dft, **kwds)
+        t_axis = FFTRegularAxis(n_axis.N, d=1/(t_axis_T * n_axis.N))
+        return t_axis, x
+
 
 @dataclass(init=False)
 class FFTRegularAxis(RegularAxis):
-    def __init__(self, N, d=1/(2*math.pi)):
+    def __init__(self, N, d=1):
         """Construct regular axis with the same start point and spacing as
         `scipy.fft.fftfreq`.
 
-        Note: *d* is selected such that the axis sample points will
-        range from -pi to pi. This is different than `d=1` which is
-        the default in `scipy.fft.fftfreq` which results in sample
-        points ranging from -1/2 to 1/2.
+        Note: *d* is the same default (`d=1`) as
+        :func:scipy.fft.fftfreq which results in frequencies ranging
+        from -1/2 to 1/2. Set `d=1/(2*math.pi)` to use -pi to pi
+        convention.
 
         """
         if N % 2 == 0:
@@ -67,7 +106,7 @@ class FFTRegularAxis(RegularAxis):
 
 @dataclass(init=False)
 class RFFTRegularAxis(RegularAxis):
-    def __init__(self, N, d=1/(2*math.pi)):
+    def __init__(self, N, d=1):
         """Construct regular axis with the same start point and spacing as
         `scipy.fft.rfftfreq`.
 
