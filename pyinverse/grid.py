@@ -89,6 +89,10 @@ class RegularGrid:
     axis_x: RegularAxis
     axis_y: RegularAxis
 
+    def __iter__(self):
+        """Return an iterator over the x axis and y axis (in that order)."""
+        return (x for x in [self.axis_x, self.axis_y])
+
     @property
     def shape(self):
         """Return the tuple with the number of vertical and horizontal sample points."""
