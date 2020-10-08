@@ -54,14 +54,15 @@ def integrate_indicator_function(indicator_fun, bounds, N=20):
     return sum([indicator_fun((x, y)) for x, y in zip(X.flat, Y.flat)]) / N**2
 
 
-def ellipse_proj(ellipse, thetas_deg, t_axis, Y=None):
+def ellipse_proj(ellipse, sinogram_grid, Y=None):
     """Calculate line integrals (from analytic expression) of *ellipse* at
-    angles specified in *thetas_deg* (in degrees) and *t_axis*
-    (:class:`pyinverse.rid.RegularAxis`) and return the resultant
-    sinogram (# projections x # angles array). If *Y* is given,
-    accumulate the sinogram in-place.
+    angles specified in degrees and projection axis sample points
+    given by the x and y axes, respectively, of
+    *sinogram_grid*. Return the resultant sinogram (# projections x #
+    angles array). If *Y* is given, accumulate the sinogram in-place.
 
     """
+    thetas_deg, t_axis = sinogram_grid
     thetas_rad = np.radians(thetas_deg)
     THETA, T = np.meshgrid(thetas_rad, t_axis.centers)
     gamma = np.arctan2(ellipse.y0, ellipse.x0)
@@ -78,12 +79,12 @@ def ellipse_proj(ellipse, thetas_deg, t_axis, Y=None):
 
 # WHY ISN'T BEAM WIDTH A PARAMETER? Or, is this implicit and
 # controllable in how t_axis is chosen?
-def ellipse_proj_rect(ellipse, thetas_deg, t_axis, Y=None):
+def ellipse_proj_rect(ellipse, sinogram_grid, Y=None):
     """Calculate "beam" integrals (from analytic expression) of *ellipse*
-    at angles specified in *thetas_deg* (in degrees) and *t_axis*
-    (:class:`pyinverse.rid.RegularAxis`) and return the resultant
-    sinogram (# projections x # angles array). If *Y* is given,
-    accumulate the sinogram in-place.
+    at angles specified in degrees and projection axis sample points
+    given by the x and y axes, respectively, of
+    *sinogram_grid*. Return the resultant sinogram (# projections x #
+    angles array). If *Y* is given, accumulate the sinogram in-place.
 
     A "beam" integral is defined as follows. Let y(theta, t) equal the
     line integral of the ellipse at angle theta and projection axis
@@ -97,6 +98,8 @@ def ellipse_proj_rect(ellipse, thetas_deg, t_axis, Y=None):
     axis sample points.
 
     """
+    thetas_deg, t_axis = sinogram_grid
+
     na = len(thetas_deg)
     thetas_rad = np.radians(thetas_deg)
 
@@ -262,17 +265,17 @@ class Ellipse:
         """
         pass
 
-    def sinogram(self, thetas_deg, t_axis, rect=False, Y=None):
+    def sinogram(self, sinogram_grid, rect=False, Y=None):
         """Return the sinogram of the ellipse. If *rect*, use "beam"
         integration. Otherwise, use line integration. (see
         :func:`ellipse_proj` and :func:`ellipse_proj_rect`)
 
         """
         if Y is None:
-            Y = np.zeros((t_axis.N, len(thetas_deg)))
+            Y = np.zeros(sinogram_grid.shape)
 
         if rect:
-            ellipse_proj_rect(self, thetas_deg, t_axis, Y=Y)
+            ellipse_proj_rect(self, sinogram_grid, Y=Y)
         else:
-            ellipse_proj(self, thetas_deg, t_axis, Y=Y)
+            ellipse_proj(self, sinogram_grid, Y=Y)
         return Y
