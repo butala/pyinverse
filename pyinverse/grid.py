@@ -68,7 +68,7 @@ class RegularAxis:
             assert np.isrealobj(x)
         omega_axis = self.dft_axis(real=real, zero_pad=zero_pad)
         if real:
-            N_fast = 2*(omega_axis.N - 1)
+            N_fast = omega_axis._N_FULL
             X_DFT = scipy.fft.rfft(x, n=N_fast, **kwds)
         else:
             N_fast = omega_axis.N
@@ -82,7 +82,7 @@ class RegularAxis:
             _dft_axis = self.dft_axis(real=real, zero_pad=zero_pad)
 
         if real:
-            f_axis = RFFTRegularAxis(2*(_dft_axis.N - 1), d=self.T)
+            f_axis = RFFTRegularAxis(_dft_axis._N_FULL, d=self.T)
         else:
             f_axis = FFTRegularAxis(_dft_axis.N, d=self.T)
         f_axis._t_axis = self
@@ -142,6 +142,7 @@ class FFTRegularAxis(RegularAxis):
             x0 = -(N-1)/(2*d*N)
         super().__init__(x0, 1/(d*N), N)
 
+# CHANGE NAME TO axis_t / axis_f
 
 @dataclass(init=False)
 class RFFTRegularAxis(RegularAxis):
@@ -153,7 +154,7 @@ class RFFTRegularAxis(RegularAxis):
 
         """
         super().__init__(0, 1/(d*N), N//2+1)
-
+        self._N_FULL = N
 
 @dataclass
 class RegularGrid:
@@ -226,7 +227,7 @@ class RegularGrid:
             axis_fy = self.axis_y.dft_axis(real=False, zero_pad=zero_pad)
 
             if real:
-                s = [axis_fy.N, 2*(axis_fx.N-1)]
+                s = [axis_fy.N, axis_fx._N_FULL]
                 X = scipy.fft.fftshift(scipy.fft.rfft2(x, s=s, **kwds), axes=0)
             else:
                 s = [axis_fy.N, axis_fx.N]
