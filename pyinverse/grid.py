@@ -45,42 +45,62 @@ class RegularAxis:
         """Return the number of sample points."""
         return self.N
 
-    def dft(self, x, zero_pad=True, **kwds):
+    def dft(self, x, real=False, zero_pad=True, **kwds):
         """
         """
+        if real:
+            assert np.isrealobj(x)
         if zero_pad:
+            # This also works for rfft?
             N_fast = scipy.fft.next_fast_len(self.N)
         else:
             N_fast = self.N
-        X_DFT = scipy.fft.fftshift(scipy.fft.fft(x, n=N_fast))
-        omega_axis = FFTRegularAxis(N_fast, d=1/(2*math.pi))
-        omega_axis._N_before_zero_pad = self.N
+        if real:
+            X_DFT = scipy.fft.rfft(x, n=N_fast)
+            omega_axis = RFFTRegularAxis(N_fast, d=1/(2*math.pi))
+        else:
+            X_DFT = scipy.fft.fftshift(scipy.fft.fft(x, n=N_fast))
+            omega_axis = FFTRegularAxis(N_fast, d=1/(2*math.pi))
+        omega_axis._t_axis = self
+        omega_axis._real = real
         return omega_axis, X_DFT
 
-    def ft(self, x, **kwds):
+    def ft(self, x, real=False, **kwds):
         """
         """
-        omega_axis, X_DFT = self.dft(x, **kwds)
-        f_axis = FFTRegularAxis(omega_axis.N, d=self.T)
+        omega_axis, X_DFT = self.dft(x, real=real, **kwds)
+        if real:
+            f_axis = RFFTRegularAxis(2*(omega_axis.N - 1), d=self.T)
+        else:
+            f_axis = FFTRegularAxis(omega_axis.N, d=self.T)
         X_FT = X_DFT*self.T * np.exp(-1j*2*np.pi*self[0]*f_axis.centers)
-        f_axis._delta_t = self[0]
-        f_axis._N_before_zero_pad = omega_axis._N_before_zero_pad
+        f_axis._t_axis = self
+        f_axis._real = real
         return f_axis, X_FT
 
     def idft(self, X_dft, **kwds):
         """
         """
-        x = scipy.fft.ifft(scipy.fft.ifftshift(X_dft))
-        N = getattr(self, '_N_before_zero_pad', self.N)
+        if self._real:
+            x = scipy.fft.irfft(X_dft)
+        else:
+            x = scipy.fft.ifft(scipy.fft.ifftshift(X_dft))
+        try:
+            N = self._t_axis.N
+        except AttributeError:
+            N = self.N
         n_axis = RegularAxis(0, 1, N)
         return n_axis, x[:N]
 
     def ift(self, X_ft, **kwds):
         """
         """
-        t_axis_T = (1/self.T)/self.N
-        X_dft = X_ft/t_axis_T * np.exp(1j*2*np.pi*self._delta_t*self.centers)
-        n_axis, x = self.idft(X_dft, **kwds)
+        if self._real:
+            t_axis_T = (1/self.T)/(2*(self.N-1))
+        else:
+            t_axis_T = (1/self.T)/self.N
+        X_dft = X_ft/t_axis_T * np.exp(1j*2*np.pi*self._t_axis[0]*self.centers)
+        n_axis, x = self.idft(X_dft, real=self._real, **kwds)
         t_axis = FFTRegularAxis(n_axis.N, d=1/(t_axis_T * n_axis.N))
         return t_axis, x
 
