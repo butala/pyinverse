@@ -45,46 +45,65 @@ class RegularAxis:
         """Return the number of sample points."""
         return self.N
 
-    def dft(self, x, real=False, zero_pad=True, **kwds):
+    def dft_axis(self, real=False, zero_pad=True):
         """
         """
-        if real:
-            assert np.isrealobj(x)
         if zero_pad:
             # This also works for rfft?
             N_fast = scipy.fft.next_fast_len(self.N)
         else:
             N_fast = self.N
         if real:
-            X_DFT = scipy.fft.rfft(x, n=N_fast)
             omega_axis = RFFTRegularAxis(N_fast, d=1/(2*math.pi))
         else:
-            X_DFT = scipy.fft.fftshift(scipy.fft.fft(x, n=N_fast))
             omega_axis = FFTRegularAxis(N_fast, d=1/(2*math.pi))
         omega_axis._t_axis = self
         omega_axis._real = real
+        return omega_axis
+
+    def dft(self, x, real=False, zero_pad=True, **kwds):
+        """
+        """
+        if real:
+            assert np.isrealobj(x)
+        omega_axis = self.dft_axis(real=real, zero_pad=zero_pad)
+        if real:
+            N_fast = 2*(omega_axis.N - 1)
+            X_DFT = scipy.fft.rfft(x, n=N_fast, **kwds)
+        else:
+            N_fast = omega_axis.N
+            X_DFT = scipy.fft.fftshift(scipy.fft.fft(x, n=N_fast, **kwds))
         return omega_axis, X_DFT
 
-    def ft(self, x, real=False, **kwds):
+    def ft_axis(self, real=False, zero_pad=True, _dft_axis=None):
         """
         """
-        omega_axis, X_DFT = self.dft(x, real=real, **kwds)
+        if _dft_axis is None:
+            _dft_axis = self.dft_axis(real=real, zero_pad=zero_pad)
+
         if real:
-            f_axis = RFFTRegularAxis(2*(omega_axis.N - 1), d=self.T)
+            f_axis = RFFTRegularAxis(2*(_dft_axis.N - 1), d=self.T)
         else:
-            f_axis = FFTRegularAxis(omega_axis.N, d=self.T)
-        X_FT = X_DFT*self.T * np.exp(-1j*2*np.pi*self[0]*f_axis.centers)
+            f_axis = FFTRegularAxis(_dft_axis.N, d=self.T)
         f_axis._t_axis = self
         f_axis._real = real
+        return f_axis
+
+    def ft(self, x, real=False, zero_pad=True, **kwds):
+        """
+        """
+        omega_axis, X_DFT = self.dft(x, real=real, zero_pad=zero_pad, **kwds)
+        f_axis = self.ft_axis(real=real, zero_pad=zero_pad, _dft_axis=omega_axis)
+        X_FT = X_DFT*self.T * np.exp(-1j*2*np.pi*self[0]*f_axis.centers)
         return f_axis, X_FT
 
     def idft(self, X_dft, **kwds):
         """
         """
         if self._real:
-            x = scipy.fft.irfft(X_dft)
+            x = scipy.fft.irfft(X_dft, **kwds)
         else:
-            x = scipy.fft.ifft(scipy.fft.ifftshift(X_dft))
+            x = scipy.fft.ifft(scipy.fft.ifftshift(X_dft), **kwds)
         try:
             N = self._t_axis.N
         except AttributeError:
@@ -100,7 +119,7 @@ class RegularAxis:
         else:
             t_axis_T = (1/self.T)/self.N
         X_dft = X_ft/t_axis_T * np.exp(1j*2*np.pi*self._t_axis[0]*self.centers)
-        n_axis, x = self.idft(X_dft, real=self._real, **kwds)
+        n_axis, x = self.idft(X_dft, **kwds)
         t_axis = FFTRegularAxis(n_axis.N, d=1/(t_axis_T * n_axis.N))
         return t_axis, x
 
@@ -148,6 +167,27 @@ class RegularGrid:
     axis_x: RegularAxis
     axis_y: RegularAxis
 
+    def __post_init__(self):
+        # For reference on all the numpy grid functions: https://stackoverflow.com/questions/12402045/mesh-grid-functions-in-python-meshgrid-mgrid-ogrid-ndgrid
+        self._centers = np.meshgrid(self.axis_x.centers, self.axis_y.centers)
+        self._borders = np.meshgrid(self.axis_x.borders, self.axis_y.borders)
+
+    @property
+    def centers(self):
+        """ ??? """
+        return self._centers
+
+    @property
+    def borders(self):
+        """ ??? """
+        return self._borders
+
+    # NOTE SURE WHAT THE USE CASE HERE IS --- DELETE IF NONE
+    def __iter__(self):
+        """ ??? """
+        for i in range(self.shape[0]):
+            yield zip(self._centers[0][i, :], self._centers[1][i, :])
+
     @property
     def shape(self):
         """Return the tuple with the number of vertical and horizontal sample points."""
@@ -178,6 +218,40 @@ class RegularGrid:
         y_extent = sorted([self.axis_y.borders[0], self.axis_y.borders[-1]])
         kwds['extent'] = x_extent + y_extent
         return ax.imshow(X, interpolation=interpolation, **kwds)
+
+    def dft(self, x, axes=None, real=False, zero_pad=True, **kwds):
+        """ ??? """
+        if axes is None:
+            if real:
+                assert False
+            else:
+                axis_fx = self.axis_x.dft_axis(real=real, zero_pad=zero_pad)
+                axis_fy = self.axis_y.dft_axis(real=real, zero_pad=zero_pad)
+                s = [axis_fy.N, axis_fx.N]
+                X = scipy.fft.fftshift(scipy.fft.fft2(x, s=s, **kwds))
+                return RegularGrid(axis_fx, axis_fy), X
+        else:
+            assert False
+
+    def ft(self, x, axes=None, real=False, zero_pad=True, **kwds):
+        """ ??? """
+        if axes is None:
+            if real:
+                assert False
+            else:
+                omega_grid, X_DFT2 = self.dft(x, axes=None, real=real, zero_pad=zero_pad, **kwds)
+                f_grid = RegularGrid(
+                    self.axis_x.ft_axis(real=real,
+                                        zero_pad=zero_pad,
+                                        _dft_axis=omega_grid.axis_x),
+                    self.axis_y.ft_axis(real=real,
+                                        zero_pad=zero_pad,
+                                        _dft_axis=omega_grid.axis_y))
+                P = np.exp(-1j*2*np.pi*(self.axis_x[0]*f_grid.centers[0] + self.axis_y[0]*f_grid.centers[1]))
+                X_FT2 = X_DFT2 * self.axis_x.T * self.axis_y.T * P
+                return f_grid, X_FT2
+        else:
+            assert False
 
 
 def oversample_regular_axis(regular, oversample):
