@@ -7,14 +7,15 @@ import scipy.special
 def besinc(x):
     """The sombrero, jinc, or besinc function
     (https://en.wikipedia.org/wiki/Sombrero_function --- note this
-    implementation omits the factor 2).
+    implementation follows the convention from Blahut, Theory of
+    Remote Image Formation, 2005, see p. 82).
 
     """
     y = np.empty_like(x)
     I = np.where(x != 0)
-    y[I] = scipy.special.j1(np.pi * x[I]) / (np.pi * x[I])
+    y[I] = scipy.special.j1(np.pi * x[I]) / (2 * x[I])
     J = np.where(x == 0)
-    y[J] = np.pi / 2
+    y[J] = np.pi / 4
     return y
 
 
