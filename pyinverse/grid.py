@@ -57,7 +57,7 @@ class RegularAxis:
             omega_axis = RFFTRegularAxis(N_fast, d=1/(2*math.pi))
         else:
             omega_axis = FFTRegularAxis(N_fast, d=1/(2*math.pi))
-        omega_axis._t_axis = self
+        omega_axis._axis_t = self
         omega_axis._real = real
         return omega_axis
 
@@ -82,20 +82,20 @@ class RegularAxis:
             _dft_axis = self.dft_axis(real=real, zero_pad=zero_pad)
 
         if real:
-            f_axis = RFFTRegularAxis(_dft_axis._N_FULL, d=self.T)
+            axis_f = RFFTRegularAxis(_dft_axis._N_FULL, d=self.T)
         else:
-            f_axis = FFTRegularAxis(_dft_axis.N, d=self.T)
-        f_axis._t_axis = self
-        f_axis._real = real
-        return f_axis
+            axis_f = FFTRegularAxis(_dft_axis.N, d=self.T)
+        axis_f._axis_t = self
+        axis_f._real = real
+        return axis_f
 
     def ft(self, x, real=False, zero_pad=True, **kwds):
         """
         """
         omega_axis, X_DFT = self.dft(x, real=real, zero_pad=zero_pad, **kwds)
-        f_axis = self.ft_axis(real=real, zero_pad=zero_pad, _dft_axis=omega_axis)
-        X_FT = X_DFT*self.T * np.exp(-1j*2*np.pi*self[0]*f_axis.centers)
-        return f_axis, X_FT
+        axis_f = self.ft_axis(real=real, zero_pad=zero_pad, _dft_axis=omega_axis)
+        X_FT = X_DFT*self.T * np.exp(-1j*2*np.pi*self[0]*axis_f.centers)
+        return axis_f, X_FT
 
     def idft(self, X_dft, **kwds):
         """
@@ -105,7 +105,7 @@ class RegularAxis:
         else:
             x = scipy.fft.ifft(scipy.fft.ifftshift(X_dft), **kwds)
         try:
-            N = self._t_axis.N
+            N = self._axis_t.N
         except AttributeError:
             N = self.N
         n_axis = RegularAxis(0, 1, N)
@@ -115,13 +115,13 @@ class RegularAxis:
         """
         """
         if self._real:
-            t_axis_T = (1/self.T)/(2*(self.N-1))
+            axis_t_T = (1/self.T)/(2*(self.N-1))
         else:
-            t_axis_T = (1/self.T)/self.N
-        X_dft = X_ft/t_axis_T * np.exp(1j*2*np.pi*self._t_axis[0]*self.centers)
+            axis_t_T = (1/self.T)/self.N
+        X_dft = X_ft/axis_t_T * np.exp(1j*2*np.pi*self._axis_t[0]*self.centers)
         n_axis, x = self.idft(X_dft, **kwds)
-        t_axis = FFTRegularAxis(n_axis.N, d=1/(t_axis_T * n_axis.N))
-        return t_axis, x
+        axis_t = FFTRegularAxis(n_axis.N, d=1/(axis_t_T * n_axis.N))
+        return axis_t, x
 
 
 @dataclass(init=False)
