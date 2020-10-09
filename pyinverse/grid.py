@@ -142,8 +142,6 @@ class FFTRegularAxis(RegularAxis):
             x0 = -(N-1)/(2*d*N)
         super().__init__(x0, 1/(d*N), N)
 
-# CHANGE NAME TO axis_t / axis_f
-
 @dataclass(init=False)
 class RFFTRegularAxis(RegularAxis):
     def __init__(self, N, d=1):
