@@ -5,6 +5,7 @@ import numpy as np
 import scipy.fft
 
 
+# ADD UNIT (default of s of axis, m for grid, [length] for phantom --- can include this on axis labels in imshow)
 @dataclass
 class RegularAxis:
     """Regular, i.e., equally spaced, points on an axis.
@@ -215,38 +216,95 @@ class RegularGrid:
         kwds['extent'] = x_extent + y_extent
         return ax.imshow(X, interpolation=interpolation, **kwds)
 
-    def dft(self, x, axes=None, real=False, zero_pad=True, **kwds):
-        """ ??? """
-        if axes is None:
+    def dft_grid(self, axis=None, real=False, zero_pad=True):
+        """
+        ???
+        """
+        if axis is None:
             axis_fx = self.axis_x.dft_axis(real=real, zero_pad=zero_pad)
+            # EXPLAIN real=False
             axis_fy = self.axis_y.dft_axis(real=False, zero_pad=zero_pad)
+            return RegularGrid(axis_fx, axis_fy)
+        elif axis == 0:
+            axis_fy = self.axis_y.dft_axis(real=real, zero_pad=zero_pad)
+            return RegularGrid(self.axis_x, axis_fy)
+        elif axis == 1:
+            axis_fx = self.axis_x.dft_axis(real=real, zero_pad=zero_pad)
+            return RegularGrid(axis_fx, self.axis_y)
+        else:
+            raise ValueError(f'unknown axis {axis}')
 
+    def dft(self, x, axis=None, real=False, zero_pad=True, **kwds):
+        """ ??? """
+        # NEED COMMENTS TO EXPLAIN TREE OF CASES BELOW
+        grid_dft = self.dft_grid(axis=axis, real=real, zero_pad=zero_pad)
+        if axis is None:
             if real:
-                s = [axis_fy.N, axis_fx._N_FULL]
+                s = [grid_dft.axis_y.N, grid_dft.axis_x._N_FULL]
                 X = scipy.fft.fftshift(scipy.fft.rfft2(x, s=s, **kwds), axes=0)
             else:
-                s = [axis_fy.N, axis_fx.N]
+                s = [grid_dft.axis_y.N, grid_dft.axis_x.N]
                 X = scipy.fft.fftshift(scipy.fft.fft2(x, s=s, **kwds))
-            return RegularGrid(axis_fx, axis_fy), X
+            return grid_dft, X
+        elif axis == 0:
+            if real:
+                X = scipy.fft.rfft(x, n=grid_dft.axis_y._N_FULL, axis=0, **kwds)
+            else:
+                X = scipy.fft.fftshift(scipy.fft.fft(x, n=grid_dft.axis_y.N, axis=0, **kwds), axes=0)
+            return grid_dft, X
+        elif axis == 1:
+            if real:
+                X = scipy.fft.rfft(x, n=grid_dft.axis_x._N_FULL, axis=1, **kwds)
+            else:
+                X = scipy.fft.fftshift(scipy.fft.fft(x, n=grid_dft.axis_x.N, axis=1, **kwds), axes=1)
+            return grid_dft, X
         else:
-            assert False
+            raise ValueError(f'unknown axis {axis}')
 
-    def ft(self, x, axes=None, real=False, zero_pad=True, **kwds):
-        """ ??? """
-        if axes is None:
-            omega_grid, X_DFT2 = self.dft(x, axes=None, real=real, zero_pad=zero_pad, **kwds)
-            f_grid = RegularGrid(
+    def ft_grid(self, axis=None, real=False, zero_pad=True, _dft_grid=None):
+        """
+        """
+        if _dft_grid is None:
+            _dft_grid = self.dft_grid(axis=axis, real=real, zero_pad=zero_pad)
+        if axis is None:
+            return RegularGrid(
                 self.axis_x.ft_axis(real=real,
                                     zero_pad=zero_pad,
-                                    _dft_axis=omega_grid.axis_x),
+                                    _dft_axis=_dft_grid.axis_x),
                 self.axis_y.ft_axis(real=False,
                                     zero_pad=zero_pad,
-                                    _dft_axis=omega_grid.axis_y))
+                                    _dft_axis=_dft_grid.axis_y))
+        elif axis == 0:
+            axis_fy = self.axis_y.ft_axis(real=real, zero_pad=zero_pad, _dft_axis=_dft_grid.axis_y)
+            return RegularGrid(self.axis_x, axis_fy)
+        elif axis == 1:
+            assert False
+        else:
+            raise ValueError(f'unknown axis {axis}')
+
+    def ft(self, x, axis=None, real=False, zero_pad=True, **kwds):
+        """ ??? """
+        # NEED COMMENTS TO EXPLAIN TREE OF CASES BELOW
+        if axis is None:
+            omega_grid, X_DFT2 = self.dft(x, axes=None, real=real, zero_pad=zero_pad, **kwds)
+            f_grid = self.ft_grid(axis=axis, real=real, zero_pad=zero_pad, _dft_grid=omega_grid)
             P = np.exp(-1j*2*np.pi*(self.axis_x[0]*f_grid.centers[0] + self.axis_y[0]*f_grid.centers[1]))
             X_FT2 = X_DFT2 * self.axis_x.T * self.axis_y.T * P
             return f_grid, X_FT2
-        else:
+        elif axis == 0:
+            omega_grid, X_DFT = self.dft(x, axis=0, real=real, zero_pad=zero_pad, **kwds)
+            axis_fy = self.axis_y.ft_axis(real=real, zero_pad=zero_pad, _dft_axis=omega_grid.axis_y)
+
+            p = np.exp(-1j*2*np.pi*self.axis_y[0]*axis_fy.centers)
+            X_FT = X_DFT*self.axis_y.T * np.atleast_2d(p).T
+            return RegularGrid(self.axis_x, axis_fy), X_FT
+        elif axis == 1:
             assert False
+        else:
+            raise ValueError(f'unknown axis {axis}')
+
+
+        # NEED idft AND ift METHODS!
 
 
 def oversample_regular_axis(regular, oversample):
