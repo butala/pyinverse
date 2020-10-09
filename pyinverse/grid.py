@@ -154,6 +154,9 @@ class RFFTRegularAxis(RegularAxis):
 
         """
         super().__init__(0, 1/(d*N), N//2+1)
+        # Later calls to, e.g., scipy.fft.rfft, require N. However,
+        # N//2 + 1 is not an invertible operation and we cannot
+        # recover N from N//2 + 1. Save N for later use.
         self._N_FULL = N
 
 @dataclass
