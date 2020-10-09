@@ -4,7 +4,7 @@ import math
 import numpy as np
 import scipy.signal
 
-from .util import robust_arcsin, robust_sqrt
+from .util import robust_arcsin, robust_sqrt, besinc
 
 
 def ellipse_bb(x, y, major, minor, angle_deg):
@@ -52,6 +52,38 @@ def integrate_indicator_function(indicator_fun, bounds, N=20):
     X, Y = np.meshgrid(np.linspace(min_x, max_x, N),
                        np.linspace(min_y, max_y, N))
     return sum([indicator_fun((x, y)) for x, y in zip(X.flat, Y.flat)]) / N**2
+
+
+
+def ellipse_ft(ellipse, fx, fy):
+    """ ??? """
+    fx_rot = fx * ellipse.cos_phi + fy * ellipse.sin_phi
+    fy_rot = fy * ellipse.cos_phi - fx * ellipse.sin_phi
+
+    D = np.sqrt((ellipse.a * fx_rot)**2 + (ellipse.b * fy_rot)**2)
+
+    jinc = lambda x: besinc(x) * 2 / np.pi
+    #Z = np.asarray(jinc(2 * D) * 2 * np.pi, dtype=np.complex)
+    #Z *= np.exp(-2 * np.pi * 1j * (ellipse.x0 * fx + ellipse.y0 * fy))
+
+    P = np.exp(-2 * np.pi * 1j * (ellipse.x0 * fx + ellipse.y0 * fy))
+    Z = jinc(2 * D) * 2 * np.pi * P
+
+    #I = NP.where(D.flat == 0)
+    #Z.flat[I] = math.pi  # the factor 2 in the jinc requires this
+                         # additional change
+    Z[D == 0] = np.pi   # IS THIS CORRECT??? SHOULD BE AREA OF ELLIPSE? WHY DO WE NEED TO DO THIS IF besinc HANDLES THIS?
+    return Z * (ellipse.a * ellipse.b) * ellipse.rho
+
+
+# def ellipse_ft_grid(ellipse, grid):
+#     """ ??? """
+#     #F_X, F_Y = NP.meshgrid(fx, fy)
+#     #N = len(fx) * len(fy)
+#     #F_X.shape = N,
+#     #F_Y.shape = N,
+#     Y_FT = ellipse_ft(ellipse, *grid.centers)
+#     return Y_FT
 
 
 def ellipse_proj(ellipse, sinogram_grid, Y=None):
@@ -258,12 +290,12 @@ class Ellipse:
     def fourier_transform(self, fx, fy):
         """
         """
-        pass
+        return ellipse_ft(self, fx, fy)
 
     def fourier_transform_grid(self, regular_grid):
         """
         """
-        pass
+        return ellipse_ft(self, *regular_grid.centers)
 
     def sinogram(self, sinogram_grid, rect=False, Y=None):
         """Return the sinogram of the ellipse. If *rect*, use "beam"
