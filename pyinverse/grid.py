@@ -222,34 +222,33 @@ class RegularGrid:
     def dft(self, x, axes=None, real=False, zero_pad=True, **kwds):
         """ ??? """
         if axes is None:
+            axis_fx = self.axis_x.dft_axis(real=real, zero_pad=zero_pad)
+            axis_fy = self.axis_y.dft_axis(real=False, zero_pad=zero_pad)
+
             if real:
-                assert False
+                s = [axis_fy.N, 2*(axis_fx.N-1)]
+                X = scipy.fft.fftshift(scipy.fft.rfft2(x, s=s, **kwds), axes=0)
             else:
-                axis_fx = self.axis_x.dft_axis(real=real, zero_pad=zero_pad)
-                axis_fy = self.axis_y.dft_axis(real=real, zero_pad=zero_pad)
                 s = [axis_fy.N, axis_fx.N]
                 X = scipy.fft.fftshift(scipy.fft.fft2(x, s=s, **kwds))
-                return RegularGrid(axis_fx, axis_fy), X
+            return RegularGrid(axis_fx, axis_fy), X
         else:
             assert False
 
     def ft(self, x, axes=None, real=False, zero_pad=True, **kwds):
         """ ??? """
         if axes is None:
-            if real:
-                assert False
-            else:
-                omega_grid, X_DFT2 = self.dft(x, axes=None, real=real, zero_pad=zero_pad, **kwds)
-                f_grid = RegularGrid(
-                    self.axis_x.ft_axis(real=real,
-                                        zero_pad=zero_pad,
-                                        _dft_axis=omega_grid.axis_x),
-                    self.axis_y.ft_axis(real=real,
-                                        zero_pad=zero_pad,
-                                        _dft_axis=omega_grid.axis_y))
-                P = np.exp(-1j*2*np.pi*(self.axis_x[0]*f_grid.centers[0] + self.axis_y[0]*f_grid.centers[1]))
-                X_FT2 = X_DFT2 * self.axis_x.T * self.axis_y.T * P
-                return f_grid, X_FT2
+            omega_grid, X_DFT2 = self.dft(x, axes=None, real=real, zero_pad=zero_pad, **kwds)
+            f_grid = RegularGrid(
+                self.axis_x.ft_axis(real=real,
+                                    zero_pad=zero_pad,
+                                    _dft_axis=omega_grid.axis_x),
+                self.axis_y.ft_axis(real=False,
+                                    zero_pad=zero_pad,
+                                    _dft_axis=omega_grid.axis_y))
+            P = np.exp(-1j*2*np.pi*(self.axis_x[0]*f_grid.centers[0] + self.axis_y[0]*f_grid.centers[1]))
+            X_FT2 = X_DFT2 * self.axis_x.T * self.axis_y.T * P
+            return f_grid, X_FT2
         else:
             assert False
 
