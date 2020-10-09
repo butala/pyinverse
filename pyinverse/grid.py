@@ -184,12 +184,6 @@ class RegularGrid:
         """ ??? """
         return self._borders
 
-    # NOTE SURE WHAT THE USE CASE HERE IS --- DELETE IF NONE
-    def __iter__(self):
-        """ ??? """
-        for i in range(self.shape[0]):
-            yield zip(self._centers[0][i, :], self._centers[1][i, :])
-
     @property
     def shape(self):
         """Return the tuple with the number of vertical and horizontal sample points."""
