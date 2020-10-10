@@ -127,7 +127,23 @@ class RegularAxis:
         except AttributeError:
             N = self.N
         if self._real:
-            # EXPLAIN WHY n=N here!
+            # N has to be given --- without it, irfft can return a
+            # result of the "wrong" length. Consider:
+            #
+            # <<< scipy.fft.irfft(scipy.fft.rfft(range(3)))
+            # >>> array([0.75, 2.25])
+            #
+            # <<< scipy.fft.irfft(scipy.fft.rfft(range(3)), n=3)
+            # >>> array([0., 1., 2.])
+            #
+            # This is because
+            #
+            # <<< len(scipy.fft.rfft(range(2)))
+            # >>> 2
+            #
+            # <<< len(scipy.fft.rfft(range(3)))
+            # >>> 2
+            #
             x = scipy.fft.irfft(X_dft, n=N, **kwds)
         else:
             x = scipy.fft.ifft(scipy.fft.ifftshift(X_dft), **kwds)
