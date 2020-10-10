@@ -62,28 +62,10 @@ def ellipse_ft(ellipse, fx, fy):
 
     D = np.sqrt((ellipse.a * fx_rot)**2 + (ellipse.b * fy_rot)**2)
 
-    jinc = lambda x: besinc(x) * 2 / np.pi
-    #Z = np.asarray(jinc(2 * D) * 2 * np.pi, dtype=np.complex)
-    #Z *= np.exp(-2 * np.pi * 1j * (ellipse.x0 * fx + ellipse.y0 * fy))
-
     P = np.exp(-2 * np.pi * 1j * (ellipse.x0 * fx + ellipse.y0 * fy))
-    Z = jinc(2 * D) * 2 * np.pi * P
+    Z = besinc(2 * D) * 4 * P
 
-    #I = NP.where(D.flat == 0)
-    #Z.flat[I] = math.pi  # the factor 2 in the jinc requires this
-                         # additional change
-    Z[D == 0] = np.pi   # IS THIS CORRECT??? SHOULD BE AREA OF ELLIPSE? WHY DO WE NEED TO DO THIS IF besinc HANDLES THIS?
     return Z * (ellipse.a * ellipse.b) * ellipse.rho
-
-
-# def ellipse_ft_grid(ellipse, grid):
-#     """ ??? """
-#     #F_X, F_Y = NP.meshgrid(fx, fy)
-#     #N = len(fx) * len(fy)
-#     #F_X.shape = N,
-#     #F_Y.shape = N,
-#     Y_FT = ellipse_ft(ellipse, *grid.centers)
-#     return Y_FT
 
 
 def ellipse_proj(ellipse, sinogram_grid, Y=None):
