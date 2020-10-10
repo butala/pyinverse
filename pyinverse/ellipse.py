@@ -187,13 +187,12 @@ def ellipse_proj_ft(ellipse, sinogram_ft_grid, Y_ft=None):
     na = len(thetas_deg)
     nt = len(ft_axis)
 
-    if Y_ft is None:
-        Y_ft = np.zeros((nt, na), dtype=np.complex)
-
     theta_rads = np.radians(thetas_deg.centers)
     FX = np.atleast_2d(ft_axis.centers).T * np.atleast_2d(np.cos(theta_rads))
     FY = np.atleast_2d(ft_axis.centers).T * np.atleast_2d(np.sin(theta_rads))
 
+    if Y_ft is None:
+        Y_ft = np.zeros((nt, na), dtype=np.complex)
     Y_ft += ellipse_ft(ellipse, FX, FY)
     return Y_ft
 
@@ -204,7 +203,8 @@ def ellipse_proj_rect_ft(ellipse, sinogram_ft_grid, Y_ft=None):
     Ts_t = sinogram_ft_grid.axis_y._axis_t.T
     alpha = 1 / (Ts_t / 2)
     W = np.sinc(sinogram_ft_grid.axis_y.centers / alpha)
-    return Y_ft * np.atleast_2d(W).T
+    Y_ft *= np.atleast_2d(W).T
+    return Y_ft
 
 
 def ellipse_raster(ellipse, regular_grid, doall=False, A=None, N=20):
