@@ -5,8 +5,6 @@ import numpy as np
 import scipy.fft
 
 
-# HAVE YOU ASSERTED ON real=True USING numpy.isrealobj EVERYWHERE YOU SHOULD?
-
 # NEED TO ADD ABILITY FOR USER TO GIVE ZERO PADDING AMOUNT --- AND THEN ZERO PAD ON TOP TO MAKE IT FAST!
 
 # ADD UNIT (default of s of axis, m for grid, [length] for phantom --- can include this on axis labels in imshow)
@@ -127,7 +125,7 @@ class RegularAxis:
         except AttributeError:
             N = self.N
         if self._real:
-            # N has to be given --- without it, irfft can return a
+            # n=N has to be given --- without it, irfft can return a
             # result of the "wrong" length. Consider:
             #
             # <<< scipy.fft.irfft(scipy.fft.rfft(range(3)))
@@ -274,6 +272,8 @@ class RegularGrid:
 
     def dft(self, x, axis=None, real=False, zero_pad=True, **kwds):
         """ ??? """
+        if real:
+            assert np.isrealobj(x)
         # NEED COMMENTS TO EXPLAIN TREE OF CASES BELOW
         grid_dft = self.dft_grid(axis=axis, real=real, zero_pad=zero_pad)
         if axis is None:
@@ -370,7 +370,8 @@ class RegularGrid:
             except AttributeError:
                 Ny = self.axis_y.N
             if self._real:
-                # Explain why s= here!!!
+                # We have to specify s=(Ny, Nx) here for the same
+                # reason we specify n= above in idft method of Axis
                 x = scipy.fft.irfft2(scipy.fft.ifftshift(X_dft, axes=0), s=(Ny, Nx), **kwds)
             else:
                 x = scipy.fft.ifft2(scipy.fft.ifftshift(X_dft), **kwds)
