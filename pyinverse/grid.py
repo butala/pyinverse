@@ -5,6 +5,8 @@ import numpy as np
 import scipy.fft
 
 
+# NEED TO ADD ABILITY FOR USER TO GIVE ZERO PADDING AMOUNT --- AND THEN ZERO PAD ON TOP TO MAKE IT FAST!
+
 # ADD UNIT (default of s of axis, m for grid, [length] for phantom --- can include this on axis labels in imshow)
 @dataclass
 class RegularAxis:
@@ -279,7 +281,8 @@ class RegularGrid:
             axis_fy = self.axis_y.ft_axis(real=real, zero_pad=zero_pad, _dft_axis=_dft_grid.axis_y)
             return RegularGrid(self.axis_x, axis_fy)
         elif axis == 1:
-            assert False
+            axis_fx = self.axis_x.ft_axis(real=real, zero_pad=zero_pad, _dft_axis=_dft_grid.axis_x)
+            return RegularGrid(axis_fx, self.axis_y)
         else:
             raise ValueError(f'unknown axis {axis}')
 
@@ -300,7 +303,12 @@ class RegularGrid:
             X_FT = X_DFT*self.axis_y.T * np.atleast_2d(p).T
             return RegularGrid(self.axis_x, axis_fy), X_FT
         elif axis == 1:
-            assert False
+            omega_grid, X_DFT = self.dft(x, axis=1, real=real, zero_pad=zero_pad, **kwds)
+            axis_fx = self.axis_x.ft_axis(real=real, zero_pad=zero_pad, _dft_axis=omega_grid.axis_x)
+
+            p = np.exp(-1j*2*np.pi*self.axis_x[0]*axis_fx.centers)
+            X_FT = X_DFT*self.axis_x.T * np.atleast_2d(p)
+            return RegularGrid(axis_fx, self.axis_y), X_FT
         else:
             raise ValueError(f'unknown axis {axis}')
 
