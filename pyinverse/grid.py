@@ -101,14 +101,15 @@ class RegularAxis:
     def idft(self, X_dft, **kwds):
         """
         """
-        if self._real:
-            x = scipy.fft.irfft(X_dft, **kwds)
-        else:
-            x = scipy.fft.ifft(scipy.fft.ifftshift(X_dft), **kwds)
         try:
             N = self._axis_t.N
         except AttributeError:
             N = self.N
+        if self._real:
+            # EXPLAIN WHY n=N here!
+            x = scipy.fft.irfft(X_dft, n=N, **kwds)
+        else:
+            x = scipy.fft.ifft(scipy.fft.ifftshift(X_dft), **kwds)
         n_axis = RegularAxis(0, 1, N)
         return n_axis, x[:N]
 
@@ -303,9 +304,64 @@ class RegularGrid:
         else:
             raise ValueError(f'unknown axis {axis}')
 
+    @property
+    def _real(self):
+        """
+        """
+        if self.axis_x._real:
+            assert not self.axis_y._real
+            return True
+        else:
+            return False
 
-        # NEED idft AND ift METHODS!
+    def idft(self, X_dft, axis=None, **kwds):
+        """
+        """
+        if axis is None:
+            try:
+                Nx = self.axis_x._axis_t.N
+            except AttributeError:
+                Nx = self.axis_x.N
+            try:
+                Ny = self.axis_y._axis_t.N
+            except AttributeError:
+                Ny = self.axis_y.N
+            if self._real:
+                # Explain why s= here!!!
+                x = scipy.fft.irfft2(scipy.fft.ifftshift(X_dft, axes=0), s=(Ny, Nx), **kwds)
+            else:
+                x = scipy.fft.ifft2(scipy.fft.ifftshift(X_dft), **kwds)
+            n_grid = RegularGrid(RegularAxis(0, 1, Nx), RegularAxis(0, 1, Ny))
+            return n_grid, x[:Ny, :Nx]
+        elif axis == 0:
+            assert False
+        elif axis == 1:
+            assert False
+        else:
+            raise ValueError(f'unknown axis {axis}')
 
+    def ift(self, X_ft, axis=None, **kwds):
+        """
+        """
+        if axis is None:
+            if self._real:
+                axis_tx_T = (1/self.axis_x.T)/(2*(self.axis_x.N-1))
+            else:
+                axis_tx_T = (1/self.axis_x.T)/self.axis_x.N
+            axis_ty_T = (1/self.axis_y.T)/self.axis_y.N
+            P = np.exp(1j*2*np.pi*(self.axis_x._axis_t[0]*self.centers[0] + self.axis_y._axis_t[0]*self.centers[1]))
+            X_dft = X_ft/axis_tx_T/axis_ty_T * P
+            n_grid, x = self.idft(X_dft, axis=None, **kwds)
+
+            grid = RegularGrid(FFTRegularAxis(n_grid.axis_x.N, d=1/(axis_tx_T * n_grid.axis_x.N)),
+                               FFTRegularAxis(n_grid.axis_y.N, d=1/(axis_ty_T * n_grid.axis_y.N)))
+            return grid, x
+        elif axis == 0:
+            assert False
+        elif axis == 1:
+            assert False
+        else:
+            raise ValueError(f'unknown axis {axis}')
 
 def oversample_regular_axis(regular, oversample):
     """Return a new :class:`RegularAxis` with the same start point as
