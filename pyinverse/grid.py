@@ -5,6 +5,8 @@ import numpy as np
 import scipy.fft
 
 
+# HAVE YOU ASSERTED ON real=True USING numpy.isrealobj EVERYWHERE YOU SHOULD?
+
 # NEED TO ADD ABILITY FOR USER TO GIVE ZERO PADDING AMOUNT --- AND THEN ZERO PAD ON TOP TO MAKE IT FAST!
 
 # ADD UNIT (default of s of axis, m for grid, [length] for phantom --- can include this on axis labels in imshow)
@@ -47,6 +49,23 @@ class RegularAxis:
     def __len__(self):
         """Return the number of sample points."""
         return self.N
+
+    @classmethod
+    def linspace(cls, start, stop, num=50, endpoint=True):
+        """Return a :class:`RegularAxis` with start point *start*, end point
+        *stop*, and *num* number of samples. If *endpoint*, then
+        *stop* is the last sample. This function uses the same
+        conventions as :func:numpy.linspace (and the Matlab routine by
+        the same name).
+
+        """
+        x0 = start
+        N = num
+        if endpoint:
+            T = (stop - start) / (num - 1)
+        else:
+            T =  (stop - start) / num
+        return cls(x0, T, N)
 
     def dft_axis(self, real=False, zero_pad=True):
         """
