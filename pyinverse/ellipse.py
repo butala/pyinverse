@@ -94,9 +94,9 @@ def ellipse_proj(ellipse, sinogram_grid, Y=None):
     angles array). If *Y* is given, accumulate the sinogram in-place.
 
     """
-    thetas_deg, t_axis = sinogram_grid
+    thetas_deg, axis_t = sinogram_grid.axis_x, sinogram_grid.axis_y
     thetas_rad = np.radians(thetas_deg)
-    THETA, T = np.meshgrid(thetas_rad, t_axis.centers)
+    THETA, T = np.meshgrid(thetas_rad, axis_t.centers)
     gamma = np.arctan2(ellipse.y0, ellipse.x0)
     s = np.sqrt(ellipse.x0**2 + ellipse.y0**2)
     TAU = T - s * np.cos(gamma - THETA)
@@ -104,13 +104,13 @@ def ellipse_proj(ellipse, sinogram_grid, Y=None):
     ALPHA = np.sqrt(ellipse.a**2 * np.cos(BETA)**2 + ellipse.b**2 * np.sin(BETA)**2)
     I = abs(TAU) <= ALPHA
     if Y is None:
-        Y = np.zeros((t_axis.N, len(thetas_deg)))
+        Y = np.zeros((axis_t.N, len(thetas_deg)))
     Y[I] += 2 * ellipse.rho * ellipse.a * ellipse.b / ALPHA[I]**2 * np.sqrt(ALPHA[I]**2 - TAU[I]**2)
     return Y
 
 
 # WHY ISN'T BEAM WIDTH A PARAMETER? Or, is this implicit and
-# controllable in how t_axis is chosen?
+# controllable in how axis_t is chosen?
 def ellipse_proj_rect(ellipse, sinogram_grid, Y=None):
     """Calculate "beam" integrals (from analytic expression) of *ellipse*
     at angles specified in degrees and projection axis sample points
@@ -130,20 +130,20 @@ def ellipse_proj_rect(ellipse, sinogram_grid, Y=None):
     axis sample points.
 
     """
-    thetas_deg, t_axis = sinogram_grid
+    thetas_deg, axis_t = sinogram_grid.axis_x, sinogram_grid.axis_y
 
     na = len(thetas_deg)
     thetas_rad = np.radians(thetas_deg)
 
-    t_center = t_axis.centers
-    t_borders = t_axis.borders
+    t_center = axis_t.centers
+    t_borders = axis_t.borders
 
     THETA, T = np.meshgrid(thetas_rad, t_center)
 
     ti = t_borders[:-1]
-    ti.shape = t_axis.N, 1
+    ti.shape = axis_t.N, 1
     ti_plus_one = t_borders[1:]
-    ti_plus_one.shape = t_axis.N, 1
+    ti_plus_one.shape = axis_t.N, 1
     T1 = np.tile(ti, (1, na))
     T2 = np.tile(ti_plus_one, (1, na))
 
@@ -175,10 +175,36 @@ def ellipse_proj_rect(ellipse, sinogram_grid, Y=None):
     J2 = -1 * robust_arcsin((2*C*T2[K] + B)/robust_sqrt(-DELTA))
     I2 = (2*C*T2[K] + B)*robust_sqrt(A + B*T2[K] + C*T2[K]**2)/(4*C) + DELTA/(8*C)*J2
     if Y is None:
-        Y = np.zeros((t_axis.N, na))
-    Y[K] += ellipse.rho * ellipse.a * ellipse.b / Z[K]**2 * (I2 - I1) * t_axis.N
+        Y = np.zeros((axis_t.N, na))
+    Y[K] += ellipse.rho * ellipse.a * ellipse.b / Z[K]**2 * (I2 - I1) * axis_t.N
 
     return Y
+
+
+def ellipse_proj_ft(ellipse, sinogram_ft_grid, Y_ft=None):
+    """???"""
+    thetas_deg, ft_axis = sinogram_ft_grid.axis_x, sinogram_ft_grid.axis_y
+    na = len(thetas_deg)
+    nt = len(ft_axis)
+
+    if Y_ft is None:
+        Y_ft = np.zeros((nt, na), dtype=np.complex)
+
+    theta_rads = np.radians(thetas_deg.centers)
+    FX = np.atleast_2d(ft_axis.centers).T * np.atleast_2d(np.cos(theta_rads))
+    FY = np.atleast_2d(ft_axis.centers).T * np.atleast_2d(np.sin(theta_rads))
+
+    Y_ft += ellipse_ft(ellipse, FX, FY)
+    return Y_ft
+
+
+def ellipse_proj_rect_ft(ellipse, sinogram_ft_grid, Y_ft=None):
+    """ ??? """
+    Y_ft = ellipse_proj_ft(ellipse, sinogram_ft_grid, Y_ft=Y_ft)
+    Ts_t = sinogram_ft_grid.axis_y._axis_t.T
+    alpha = 1 / (Ts_t / 2)
+    W = np.sinc(sinogram_ft_grid.axis_y.centers / alpha)
+    return Y_ft * np.atleast_2d(W).T
 
 
 def ellipse_raster(ellipse, regular_grid, doall=False, A=None, N=20):
@@ -303,11 +329,16 @@ class Ellipse:
         :func:`ellipse_proj` and :func:`ellipse_proj_rect`)
 
         """
-        if Y is None:
-            Y = np.zeros(sinogram_grid.shape)
-
         if rect:
-            ellipse_proj_rect(self, sinogram_grid, Y=Y)
+            Y = ellipse_proj_rect(self, sinogram_grid, Y=Y)
         else:
-            ellipse_proj(self, sinogram_grid, Y=Y)
+            Y = ellipse_proj(self, sinogram_grid, Y=Y)
         return Y
+
+    def proj_ft(self, sinogram_ft_grid, rect=False, Y_ft=None):
+        """ ??? """
+        if rect:
+            Y_ft = ellipse_proj_rect_ft(self, sinogram_ft_grid, Y_ft=Y_ft)
+        else:
+            Y_ft = ellipse_proj_ft(self, sinogram_ft_grid, Y_ft=Y_ft)
+        return Y_ft
