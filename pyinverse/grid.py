@@ -1,11 +1,14 @@
 from dataclasses import dataclass
-import math
 
 import numpy as np
 import scipy.fft
 
 
 # NEED TO ADD ABILITY FOR USER TO GIVE ZERO PADDING AMOUNT --- AND THEN ZERO PAD ON TOP TO MAKE IT FAST!
+
+# SHOULD AN AXIS/GRID HAVE A real (True by default) PROPERTY?
+
+# ADD ASSERTIONS THAT AXIS / GRID SHAPES AND ARRAY INPUTS ARE CONSISTENT
 
 # ADD UNIT (default of s of axis, m for grid, [length] for phantom --- can include this on axis labels in imshow)
 @dataclass
@@ -48,6 +51,12 @@ class RegularAxis:
         """Return the number of sample points."""
         return self.N
 
+    @property
+    def N_fast(self):
+        """ ??? """
+        # This also works for rfft?
+        return scipy.fft.next_fast_len(self.N)
+
     @classmethod
     def linspace(cls, start, stop, num=50, endpoint=True):
         """Return a :class:`RegularAxis` with start point *start*, end point
@@ -74,9 +83,9 @@ class RegularAxis:
         else:
             N_fast = self.N
         if real:
-            omega_axis = RFFTRegularAxis(N_fast, d=1/(2*math.pi))
+            omega_axis = RFFTRegularAxis(N_fast, d=1/(2*np.pi))
         else:
-            omega_axis = FFTRegularAxis(N_fast, d=1/(2*math.pi))
+            omega_axis = FFTRegularAxis(N_fast, d=1/(2*np.pi))
         omega_axis._axis_t = self
         omega_axis._real = real
         return omega_axis
@@ -169,7 +178,7 @@ class FFTRegularAxis(RegularAxis):
 
         Note: *d* is the same default (`d=1`) as
         :func:scipy.fft.fftfreq which results in frequencies ranging
-        from -1/2 to 1/2. Set `d=1/(2*math.pi)` to use -pi to pi
+        from -1/2 to 1/2. Set `d=1/(2*np.pi)` to use -pi to pi
         convention.
 
         """
