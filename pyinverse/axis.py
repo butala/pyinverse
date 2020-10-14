@@ -310,12 +310,15 @@ class RegularGrid:
         AXES_MAP = {None: ('F', 'F'),
                     0:    ('F', 'S'),
                     1:    ('S', 'F')}
+        if real:
+            AXES_MAP[None] = ('S', 'F')
+
         grid_freq_axis = []
         for xform, n, axis in zip(AXES_MAP[axes], s, [self.axis_y, self.axis_x]):
             if xform == 'F':
                 a = axis.spectrum_axis(n, real=real)
             elif xform == 'S':
-                a = axis
+                a = RegularAxis(axis.x0, axis.T/n, n)
             else:
                 assert False
             a._axis_t_x0 = axis.x0
