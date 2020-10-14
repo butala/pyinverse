@@ -12,10 +12,6 @@ class Order(enum.Enum):
 
 # MORE BOUNDS ASSERTIONS LIKE WAS ADDED TO dft METHOD!
 
-# NEED TO ADD ABILITY FOR USER TO GIVE ZERO PADDING AMOUNT --- AND THEN ZERO PAD ON TOP TO MAKE IT FAST!
-
-# SHOULD AN AXIS/GRID HAVE A real (True by default) PROPERTY?
-
 # ADD ASSERTIONS THAT AXIS / GRID SHAPES AND ARRAY INPUTS ARE CONSISTENT
 
 # ADD UNIT (default of s of axis, m for grid, [length] for phantom --- can include this on axis labels in imshow)
@@ -83,6 +79,13 @@ class RegularAxis:
             T =  (stop - start) / num
         return cls(x0, T, N)
 
+    def oversample(self, U):
+        """Return a new :class:`RegularAxis` with the same start point as
+        *regular* but with a factor *U* more sample points.
+
+        """
+        return RegularAxis(self.x0, self.T/U, self.N*U)
+
     def spectrum_axis(self, n, real=False):
         """ ??? """
         d = self.T/(2*np.pi)
@@ -96,7 +99,8 @@ class RegularAxis:
 
     def spectrum(self, x, n=None, real=False):
         """ ??? """
-        assert self.N == len(x)
+        assert len(x) == self.N
+        assert self._order == Order.INCREASING
         if n is None:
             n = self.N
         elif n < self.N:
@@ -109,8 +113,6 @@ class RegularAxis:
         axis_freq = self.spectrum_axis(n, real=real)
         P = np.exp(-1j*axis_freq.centers*self.x0)
         X_spectrum *= P * self.T
-        axis_freq._axis_t_x0 = self.x0
-        axis_freq._axis_t_N = self.N
         return axis_freq, X_spectrum
 
 
@@ -162,19 +164,19 @@ class FFTRegularAxis(FreqRegularAxis):
         self._d = d
         super().__init__(x0, 1/(d*N), N)
         self._N_FULL = N
-
-    def __post_init__(self):
-        """ ??? """
         self._centers = scipy.fft.fftfreq(self.N, d=self._d)
         self._order = Order.FFT
 
-    def incresing(self, x):
+    def increasing(self, x=None):
         """
         """
         increasing_axis = RegularAxis(self.x0, self.T, self.N)
         increasing_axis._axis_t_x0 = self._axis_t_x0
         increasing_axis._axis_t_N = self._axis_t_N
-        return increasing_axis, scipy.fft.ffttshift(x)
+        if x is None:
+            return increasing_axis
+        else:
+            return increasing_axis, scipy.fft.fftshift(x)
 
     def ispectrum(self, *args, **kwds):
         """ ??? """
@@ -209,3 +211,143 @@ def dtft(x, real=False, n=None, n0=0):
     if n is None:
         n = len(x)
     return RegularAxis(n0, 1, len(x)).spectrum(x, real=real, n=n)
+
+
+
+@dataclass
+class RegularGrid:
+    """Regular, i.e., equally spaced, points on a grid.
+
+    Args:
+        axis_x (RegularAxis): horizontal axis
+        axis_y (RegularAxis): vertical axis
+
+    """
+    axis_x: RegularAxis
+    axis_y: RegularAxis
+
+    def __post_init__(self):
+        # For reference on all the numpy grid functions: https://stackoverflow.com/questions/12402045/mesh-grid-functions-in-python-meshgrid-mgrid-ogrid-ndgrid
+        self._centers = np.meshgrid(self.axis_x.centers, self.axis_y.centers)
+        if self.axis_x._order == Order.INCREASING and self.axis_y._order == Order.INCREASING:
+            self._borders = np.meshgrid(self.axis_x.borders, self.axis_y.borders)
+
+    @property
+    def centers(self):
+        """ ??? """
+        return self._centers
+
+    @property
+    def borders(self):
+        """ ??? """
+        return self._borders
+
+    @property
+    def shape(self):
+        """Return the tuple with the number of vertical and horizontal sample points."""
+        return self.axis_y.N, self.axis_x.N
+
+    @property
+    def N_fast(self):
+        """ ??? """
+        # This also works for rfft?
+        return self.axis_x.N_fast, self.axis_y.N_fast
+
+    def increasing(self, x=None):
+        """ ??? """
+        # (axis_x order, axis_y, order) -> ((increasing?, increasing?), axes)
+        xform_map = {(Order.FFT, Order.FFT):        ((True, True),  None),
+                     (Order.FFT, Order.INCREASING): ((True, False), 1),
+                     (Order.INCREASING, Order.FFT): ((False, True), 0),
+                     (Order.INCREASING, Order.INCREASING): ((False, False), False)}
+
+
+        if x is not None:
+            assert x.shape == self.shape
+
+        (increasing_x, increasing_y), axes = xform_map[(self.axis_x._order,
+                                                        self.axis_y._order)]
+
+        grid = RegularGrid(self.axis_x.increasing() if increasing_x else self.axis_x,
+                           self.axis_y.increasing() if increasing_y else self.axis_y)
+
+        if x is not None:
+            if axes is not False:
+                x = scipy.fft.fftshift(x, axes=axes)
+            return grid, x
+        else:
+            return grid
+
+
+    def imshow(self, ax, X, interpolation='none', **kwds):
+        """Display the 2-D array *X* as an image on axis *ax* taking into
+        account the grid orientation. Additional arguments *kwds* are
+        passed to :func:`imshow`.
+
+        For details: https://matplotlib.org/3.3.1/tutorials/intermediate/imshow_extent.html
+
+        """
+        if self.axis_x._order != Order.INCREASING or self.axis_y._order != Order.INCREASING:
+            grid_increasing, X_increasing = self.increasing(X)
+            return grid_increasing.imshow(ax, X_increasing, interpolation=interpolation, **kwds)
+
+        assert self.shape == X.shape
+        assert 'origin' not in kwds
+        kwds['origin'] = 'lower'
+        assert 'extent' not in kwds
+        x_extent = [self.axis_x.borders[0], self.axis_x.borders[-1]]
+        y_extent = sorted([self.axis_y.borders[0], self.axis_y.borders[-1]])
+        kwds['extent'] = x_extent + y_extent
+        return ax.imshow(X, interpolation=interpolation, **kwds)
+
+
+    # y = rows, x = cols
+    # s order is (y, x)
+    def spectrum_grid(self, s=None, axes=None, real=False):
+        """ ??? """
+        if s is None:
+            s = self.shape
+        AXES_MAP = {None: ('F', 'F'),
+                    0:    ('F', 'S'),
+                    1:    ('S', 'F')}
+        grid_freq_axis = []
+        for xform, n, axis in zip(AXES_MAP[axes], s, [self.axis_y, self.axis_x]):
+            if xform == 'F':
+                a = axis.spectrum_axis(n, real=real)
+            elif xform == 'S':
+                a = axis
+            else:
+                assert False
+            a._axis_t_x0 = axis.x0
+            a._axis_t_N = axis.N
+            grid_freq_axis.append(a)
+        return RegularGrid(grid_freq_axis[1], grid_freq_axis[0])
+
+
+    def spectrum(self, x, s=None, axes=None, real=False):
+        """ ??? """
+        assert x.shape == self.shape
+        assert self.axis_x._order == Order.INCREASING and self.axis_y._order == Order.INCREASING
+        if s is None:
+            s = self.shape
+        elif s < self.shape:
+            raise NotImplementedError()
+        if real:
+            assert np.isrealobj(x)
+            X_spectrum = scipy.fft.rfft2(x, s=s, axes=axes)
+        else:
+            X_spectrum = scipy.fft.fft2(x, s=s, axes=axes)
+        grid_freq = self.spectrum_grid(s=s, axes=axes, real=real)
+        P = np.exp(-1j*(grid_freq.centers[0]*self.axis_x.x0 + grid_freq.centers[1]*self.axis_y.x0))
+        X_spectrum *= P * self.axis_x.T * self.axis_y.T
+        return grid_freq, X_spectrum
+
+
+def dtft2(x, real=False, s=None, n0=(0, 0)):
+    """ ??? """
+    if s is None:
+        s = x.shape
+    axis_x = RegularAxis(n0[1], 1, x.shape[1])
+    axis_y = RegularAxis(n0[0], 1, x.shape[0])
+    grid = RegularGrid(axis_x, axis_y)
+    return grid.spectrum(x, real=real, s=s)
