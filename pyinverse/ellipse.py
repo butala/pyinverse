@@ -7,6 +7,8 @@ import scipy.signal
 from .util import robust_arcsin, robust_sqrt, besinc
 
 
+# CLEANUP THINGS THAT USE np.tile --- BROADCASTING SHOULD BE SUFFICIENT
+
 def ellipse_bb(x, y, major, minor, angle_deg):
     """
     Compute tight ellipse bounding box for the ellipse centered at (*x*, *y*), with major and minor axes lengths of *major* and *minor*, and rotated CCW by *angle_deg* (in degrees). Return the tuple `(min_x, min_y, max_x, max_y)`.
@@ -182,7 +184,7 @@ def ellipse_proj_ft(ellipse, sinogram_ft_grid, Y_ft=None):
 def ellipse_proj_rect_ft(ellipse, sinogram_ft_grid, Y_ft=None):
     """ ??? """
     Y_ft = ellipse_proj_ft(ellipse, sinogram_ft_grid, Y_ft=Y_ft)
-    Ts_t = sinogram_ft_grid.axis_y._axis_t.T
+    Ts_t = sinogram_ft_grid.axis_y.axis_t.T
     alpha = 1 / (Ts_t / 2)
     W = np.sinc(sinogram_ft_grid.axis_y.centers / alpha)
     Y_ft *= np.atleast_2d(W).T
@@ -254,6 +256,7 @@ class Ellipse:
     phi_deg: float  # Angle (in degrees) between the horizontal semiaxis of the ellipse and the x-axis of the image
 
     """
+    The notes on [length] and [mass] below concern the Shepp-Logan phantom.
     - A has units of density [mass] / [length]^2
     - a, b, x0, and y0 are given in the unit of [length], but in the relative sense (not in the absolute sense of, e.g., m)
     - phi_deg is in degrees
