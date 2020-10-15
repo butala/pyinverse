@@ -88,12 +88,7 @@ class RegularAxis:
 
     def scale(self, S):
         """ ??? """
-        print(self)
-        print(self._axis_t_T)
         a = RegularAxis(self.x0*S, self.T*S, self.N)
-        a._axis_t_x0 = self._axis_t_x0
-        a._axis_t_N = self._axis_t_N
-        a._axis_t_T = self._axis_t_T
         return a
 
     def to_Hz(self):
@@ -105,12 +100,9 @@ class RegularAxis:
         """ ??? """
         d = self.T/(2*np.pi)
         if real:
-            axis_freq = RFFTRegularAxis(n, d=d)
+            axis_freq = RFFTRegularAxis(n, self, d=d)
         else:
-            axis_freq = FFTRegularAxis(n, d=d)
-        axis_freq._axis_t_x0 = self.x0
-        axis_freq._axis_t_N = self.N
-        axis_freq._axis_t_T = self.T ###
+            axis_freq = FFTRegularAxis(n, self, d=d)
         return axis_freq
 
     def spectrum(self, x, n=None, real=False):
@@ -133,15 +125,12 @@ class RegularAxis:
 
 
 class FreqRegularAxis(RegularAxis):
-    _axis_t_x0: float = None
-    _axis_t_N: int = None
-    _axis_t_T: float = None  ###
-    _N_FULL: int = None
+    axis_t: RegularAxis
+    _N_FULL: int
 
     @property
     def d(self):
         """ """
-        #return 1 / (self.T * self.N)
         return 1 / (self.T * self._N_FULL)
 
     def oversample(self, U):
@@ -149,32 +138,25 @@ class FreqRegularAxis(RegularAxis):
         *regular* but with a factor *U* more sample points.
 
         """
-        return type(self)(self._N_FULL*U, d=self.d)
+        return type(self)(self._N_FULL*U, self.axis_t, d=self.d)
 
     def scale(self, S):
         """ ??? """
-        a = type(self)(self._N_FULL, d=self.d/S)
-        a._axis_t_x0 = self._axis_t_x0
-        a._axis_t_N = self._axis_t_N
-        a._axis_t_T = self._axis_t_T
-        a._N_FULL = self._N_FULL
-        return a
+        return type(self)(self._N_FULL, self.axis_t, d=self.d/S)
 
 
     def ispectrum_axis(self, n):
         """ ??? """
-        axis_t_x0 = 0 if self._axis_t_x0 is None else self._axis_t_x0
-        axis_t_N = n if self._axis_t_N is None else self._axis_t_N
-        return RegularAxis(axis_t_x0,
+        return RegularAxis(self.axis_t.x0,
                            2 * np.pi / (self.T * self._N_FULL),
-                           axis_t_N)
+                           self.axis_t.N)
 
     def ispectrum(self, X_spectrum, n=None, _ifft=None):
         """
         """
         assert len(X_spectrum) == self.N
         if n is not None:
-            assert self._axis_t_N is None
+            assert self.axis_t is None
         if n is None:
             n = self._N_FULL
         elif n < self._N_FULL:
@@ -187,7 +169,7 @@ class FreqRegularAxis(RegularAxis):
 
 @dataclass(init=False)
 class FFTRegularAxis(FreqRegularAxis):
-    def __init__(self, N, d=1):
+    def __init__(self, N, axis_t, d=1):
         """Construct regular axis with the same start point and spacing as
         `scipy.fft.fftfreq`.
 
@@ -203,6 +185,7 @@ class FFTRegularAxis(FreqRegularAxis):
             x0 = -(N-1)/(2*d*N)
         self._d = d
         super().__init__(x0, 1/(d*N), N)
+        self.axis_t = axis_t
         self._N_FULL = N
         self._centers = scipy.fft.fftfreq(self.N, d=self._d)
         self._order = Order.FFT
@@ -216,9 +199,6 @@ class FFTRegularAxis(FreqRegularAxis):
         """
         """
         increasing_axis = RegularAxis(self.x0, self.T, self.N)
-        increasing_axis._axis_t_x0 = self._axis_t_x0
-        increasing_axis._axis_t_N = self._axis_t_N
-        increasing_axis._axis_t_T = self._axis_t_T ###
         if x is None:
             return increasing_axis
         else:
@@ -231,9 +211,7 @@ class FFTRegularAxis(FreqRegularAxis):
 
 @dataclass(init=False)
 class RFFTRegularAxis(FreqRegularAxis):
-    _N_FULL: int = None
-
-    def __init__(self, N, d=1):
+    def __init__(self, N, axis_t, d=1):
         """Construct regular axis with the same start point and spacing as
         `scipy.fft.rfftfreq`.
 
@@ -245,6 +223,7 @@ class RFFTRegularAxis(FreqRegularAxis):
         # N//2 + 1 is not an invertible operation and we cannot
         # recover N from N//2 + 1. Save N for later use.
         self._N_FULL = N
+        self.axis_t = axis_t
 
     def ispectrum(self, X_spectrum, **kwds):
         """ ??? """
@@ -386,9 +365,6 @@ class RegularGrid:
                 a = RegularAxis(self_axis.x0, self_axis.T*self_axis.N/n, n)
             else:
                 assert False
-            a._axis_t_x0 = self_axis.x0
-            a._axis_t_N = self_axis.N
-            a._axis_t_T = self_axis.T ###
             grid_freq_axis.append(a)
         return RegularGrid(grid_freq_axis[1], grid_freq_axis[0])
 
@@ -433,9 +409,6 @@ class RegularGrid:
                 a = axis.ispectrum_axis(n)
             else:
                 assert False
-            a._axis_t_x0 = axis.x0
-            a._axis_t_N = axis.N
-            a._axis_t_T = axis.T ###
             grid_axis.append(a)
         return RegularGrid(grid_axis[1], grid_axis[0])
 
@@ -444,12 +417,11 @@ class RegularGrid:
         """ ??? """
         assert X_spectrum.shape == self.shape
         if s is None:
-            #s = self.shape
-            s = (self.axis_x._axis_t_N, self.axis_y._axis_t_N)
+            s = (self.axis_x.axis_t.N, self.axis_y.axis_t.N)
         elif s < self.shape:
             raise NotImplementedError()
         grid = self.ispectrum_grid(s=s, axes=axes)
-        P = np.exp(1j*(self.centers[0]*self.axis_x._axis_t_x0 + self.centers[1]*self.axis_y._axis_t_x0))
+        P = np.exp(1j*(self.centers[0]*self.axis_x.axis_t._x0 + self.centers[1]*self.axis_y.axis_t.x0))
         assert axes is None
         if isinstance(self.axis_x, FFTRegularAxis) and isinstance(self.axis_y, FFTRegularAxis):
             x = scipy.fft.ifft2(X_spectrum * P / (grid.axis_x.T * grid.axis_y.T), s=s)
