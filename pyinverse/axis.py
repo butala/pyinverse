@@ -470,7 +470,7 @@ class FreqRegularGridBase(RegularGrid):
         return self.grid_s, x
 
 
-#@dataclass
+@dataclass
 class FreqRegularGrid(FreqRegularGridBase):
     _AXIS_MAP = {None: (FFTRegularAxis, FFTRegularAxis),
                  0:    (RegularAxis, FFTRegularAxis),
