@@ -1,5 +1,7 @@
+import imageio
 import numpy as np
 import scipy.fft
+
 
 from .axis import Order, RegularAxis, FFTRegularAxis, RFFTRegularAxis
 
@@ -27,6 +29,13 @@ class RegularGrid:
         """ ??? """
         Ny, Nx = x.shape
         return cls(RegularAxis(0, 1, Nx), RegularAxis(0, 1, Ny))
+
+    @classmethod
+    def from_image(cls, im_fname):
+        """ ??? """
+        x = imageio.imread(im_fname)
+        assert x.ndim == 2
+        return cls.image(x), x
 
     @property
     def centers(self):
