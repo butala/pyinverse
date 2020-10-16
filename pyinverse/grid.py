@@ -1,12 +1,9 @@
-from dataclasses import dataclass
-
 import numpy as np
 import scipy.fft
 
 from .axis import Order, RegularAxis, FFTRegularAxis, RFFTRegularAxis
 
 
-@dataclass
 class RegularGrid:
     """Regular, i.e., equally spaced, points on a grid.
 
@@ -15,10 +12,11 @@ class RegularGrid:
         axis_y (RegularAxis): vertical axis
 
     """
-    axis_x: RegularAxis
-    axis_y: RegularAxis
+    def __init__(self, axis_x, axis_y):
+        """ """
+        self.axis_x = axis_x
+        self.axis_y = axis_y
 
-    def __post_init__(self):
         # For reference on all the numpy grid functions: https://stackoverflow.com/questions/12402045/mesh-grid-functions-in-python-meshgrid-mgrid-ogrid-ndgrid
         self._centers = np.meshgrid(self.axis_x.centers, self.axis_y.centers)
         if self.axis_x._order == Order.INCREASING and self.axis_y._order == Order.INCREASING:
@@ -182,15 +180,16 @@ class RegularGrid:
 
 # grid_check is abstract
 # can you make _ifft an abstract property?
-@dataclass
 class FreqRegularGridBase(RegularGrid):
-    grid_s: RegularGrid
+    def __init__(self, axis_x, axis_y, grid_s):
+        super().__init__(axis_x, axis_y)
+        self.grid_s = grid_s
 
     def grid_check(self, axis):
         type_x, type_y = self._AXIS_MAP[axis]
         assert isinstance(self.axis_x, type_x) and isinstance(self.axis_y, type_y)
 
-    def ispectrum(self, X_spectrum, axis=None, _ifft2=None, _ifft=None):
+    def ispectrum(self, X_spectrum, axis=None):
         """ ??? """
         assert X_spectrum.shape == self.shape
         self.grid_check(axis)
@@ -198,15 +197,15 @@ class FreqRegularGridBase(RegularGrid):
         if axis is None:
             s = (self.axis_y._N_FULL, self.axis_x._N_FULL)
             P = np.exp(1j*(self.centers[0]*self.axis_x.axis_t.x0 + self.centers[1]*self.axis_y.axis_t.x0))
-            x = _ifft2(X_spectrum * P / (self.grid_s.axis_x.T * self.grid_s.axis_y.T), s=s)
+            x = self._IFFT2(X_spectrum * P / (self.grid_s.axis_x.T * self.grid_s.axis_y.T), s=s)
         elif axis == 0:
             n = self.axis_y._N_FULL
             p = np.exp(1j*self.axis_y.centers*self.axis_y.axis_t.x0)
-            x = _ifft(X_spectrum * np.atleast_2d(p).T / self.grid_s.axis_y.T, n=n)
+            x = self._IFFT(X_spectrum * np.atleast_2d(p).T / self.grid_s.axis_y.T, n=n)
         elif axis == 1:
             n = self.axis_x._N_FULL
             p = np.exp(1j*self.axis_x.centers*self.axis_x.axis_t.x0)
-            x = _ifft(X_spectrum * np.atleast_2d(p) / self.grid_s.axis_x.T, n=n)
+            x = self._IFFT(X_spectrum * np.atleast_2d(p) / self.grid_s.axis_x.T, n=n)
         else:
             assert False
 
@@ -214,29 +213,32 @@ class FreqRegularGridBase(RegularGrid):
         return self.grid_s, x
 
 
-@dataclass
 class FreqRegularGrid(FreqRegularGridBase):
+    @property
+    def _IFFT2(self):
+        return scipy.fft.ifft2
+
+    @property
+    def _IFFT(self):
+        return scipy.fft.ifft
+
     _AXIS_MAP = {None: (FFTRegularAxis, FFTRegularAxis),
                  0:    (RegularAxis, FFTRegularAxis),
                  1:    (FFTRegularAxis, RegularAxis)}
 
-    def ispectrum(self, *args, **kwds):
-        return super().ispectrum(*args,
-                                 _ifft2=scipy.fft.ifft2,
-                                 _ifft=scipy.fft.ifft,
-                                 **kwds)
 
-@dataclass
 class RealFreqRegularGrid(FreqRegularGridBase):
+    @property
+    def _IFFT2(self):
+        return scipy.fft.irfft2
+
+    @property
+    def _IFFT(self):
+        return scipy.fft.irfft
+
     _AXIS_MAP = {None: (RFFTRegularAxis, FFTRegularAxis),
                  0:    (RegularAxis, RFFTRegularAxis),
                  1:    (RFFTRegularAxis, RegularAxis)}
-
-    def ispectrum(self, *args, **kwds):
-        return super().ispectrum(*args,
-                                 _ifft2=scipy.fft.irfft2,
-                                 _ifft=scipy.fft.irfft,
-                                 **kwds)
 
 
 def dtft2(x, axis=None, real=False, s=None, n0=(0, 0)):

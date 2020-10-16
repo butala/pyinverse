@@ -1,5 +1,5 @@
 import enum
-from dataclasses import dataclass
+from abc import ABCMeta, abstractmethod
 
 import numpy as np
 import scipy.fft
@@ -11,7 +11,6 @@ class Order(enum.Enum):
 
 
 # ADD UNIT (default of s of axis, m for grid, [length] for phantom --- can include this on axis labels in imshow)
-@dataclass
 class RegularAxis:
     """Regular, i.e., equally spaced, points on an axis.
 
@@ -21,9 +20,12 @@ class RegularAxis:
         N (int): number of points
 
     """
-    x0: float
-    T:  float
-    N:  int
+    def __init__(self, x0, T, N):
+        """ ??? """
+        self.x0 = x0
+        self.T = T
+        self.N = N
+        self.__post_init__()
 
     def __post_init__(self):
         self._centers = self.x0 + np.arange(self.N, dtype=np.float) * self.T
@@ -119,11 +121,16 @@ class RegularAxis:
         return axis_freq, X_spectrum
 
 
-# Not setting as a dataclass as this class is ABSTRACT --- can we add
-# an abstract _ifft property?
-class FreqRegularAxis(RegularAxis):
-    axis_t: RegularAxis
-    _N_FULL: int
+class FreqRegularAxis(RegularAxis, metaclass=ABCMeta):
+    @property
+    @abstractmethod
+    def axis_t(self):
+        pass
+
+    @property
+    @abstractmethod
+    def _N_FULL(self):
+        pass
 
     @property
     def d(self):
@@ -184,7 +191,6 @@ class FreqRegularAxis(RegularAxis):
         return self.axis_t, x
 
 
-@dataclass(init=False)
 class FFTRegularAxis(FreqRegularAxis):
     def __init__(self, N, axis_t, d=1):
         """Construct regular axis with the same start point and spacing as
@@ -202,8 +208,8 @@ class FFTRegularAxis(FreqRegularAxis):
             x0 = -(N-1)/(2*d*N)
         self._d = d
         super().__init__(x0, 1/(d*N), N)
-        self.axis_t = axis_t
-        self._N_FULL = N
+        self._axis_t = axis_t
+        self.__N_FULL = N
         self._centers = scipy.fft.fftfreq(self.N, d=self._d)
         self._order = Order.FFT
 
@@ -213,6 +219,14 @@ class FFTRegularAxis(FreqRegularAxis):
         # _borders attribute which is set in
         # RegularAxis.__post__init__.
         pass
+
+    @property
+    def axis_t(self):
+        return self._axis_t
+
+    @property
+    def _N_FULL(self):
+        return self.__N_FULL
 
     def increasing(self, x=None):
         """
@@ -228,7 +242,6 @@ class FFTRegularAxis(FreqRegularAxis):
         return super().ispectrum(*args, _ifft=scipy.fft.irfft, **kwds)
 
 
-@dataclass(init=False)
 class RFFTRegularAxis(FreqRegularAxis):
     def __init__(self, N, axis_t, d=1):
         """Construct regular axis with the same start point and spacing as
@@ -238,11 +251,19 @@ class RFFTRegularAxis(FreqRegularAxis):
 
         """
         super().__init__(0, 1/(d*N), N//2+1)
+        self._axis_t = axis_t
         # Later calls to, e.g., scipy.fft.rfft, require N. However,
         # N//2 + 1 is not an invertible operation and we cannot
         # recover N from N//2 + 1. Save N for later use.
-        self._N_FULL = N
-        self.axis_t = axis_t
+        self.__N_FULL = N
+
+    @property
+    def axis_t(self):
+        return self._axis_t
+
+    @property
+    def _N_FULL(self):
+        return self.__N_FULL
 
     def ispectrum(self, X_spectrum, **kwds):
         """ ??? """
