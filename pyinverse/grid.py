@@ -88,7 +88,7 @@ class RegularGrid:
             return grid
 
 
-    def imshow(self, ax, X, interpolation='none', **kwds):
+    def imshow(self, ax, X, interpolation='none', flip_y=False, **kwds):
         """Display the 2-D array *X* as an image on axis *ax* taking into
         account the grid orientation. Additional arguments *kwds* are
         passed to :func:`imshow`.
@@ -102,10 +102,14 @@ class RegularGrid:
 
         assert self.shape == X.shape
         assert 'origin' not in kwds
-        kwds['origin'] = 'lower'
         assert 'extent' not in kwds
         x_extent = [self.axis_x.borders[0], self.axis_x.borders[-1]]
-        y_extent = sorted([self.axis_y.borders[0], self.axis_y.borders[-1]])
+        if flip_y:
+            kwds['origin'] = 'upper'
+            y_extent = [self.axis_y.borders[-1], self.axis_y.borders[0]]
+        else:
+            kwds['origin'] = 'lower'
+            y_extent = [self.axis_y.borders[0], self.axis_y.borders[-1]]
         kwds['extent'] = x_extent + y_extent
         return ax.imshow(X, interpolation=interpolation, **kwds)
 
