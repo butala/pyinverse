@@ -28,7 +28,7 @@ class RegularGrid:
     def image(cls, x):
         """ ??? """
         Ny, Nx = x.shape
-        return RegularGrid(RegularAxis(0, 1, Nx), RegularAxis(0, 1, Ny))
+        return cls(RegularAxis(0, 1, Nx), RegularAxis(0, 1, Ny))
 
     @property
     def centers(self):
