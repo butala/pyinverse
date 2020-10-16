@@ -24,6 +24,12 @@ class RegularGrid:
         if self.axis_x._order == Order.INCREASING and self.axis_y._order == Order.INCREASING:
             self._borders = np.meshgrid(self.axis_x.borders, self.axis_y.borders)
 
+    @classmethod
+    def image(cls, x):
+        """ ??? """
+        Ny, Nx = x.shape
+        return RegularGrid(RegularAxis(0, 1, Nx), RegularAxis(0, 1, Ny))
+
     @property
     def centers(self):
         """ ??? """
