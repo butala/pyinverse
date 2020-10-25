@@ -37,6 +37,12 @@ class RegularGrid:
         assert x.ndim == 2
         return cls.image(x), x
 
+    def __repr__(self):
+        return f'<{self.__class__.__name__} <axis_x: {repr(self.axis_x)}> <axis_y: {repr(self.axis_y)}>>'
+
+    def __str__(self):
+        return f'{self.__class__.__name__}:\naxis x: {str(self.axis_x)}\naxis y: {str(self.axis_y)}'
+
     @property
     def centers(self):
         """ ??? """

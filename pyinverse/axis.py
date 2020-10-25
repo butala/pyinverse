@@ -32,6 +32,12 @@ class RegularAxis:
         self._borders = self.x0 - self.T/2 + np.arange(self.N + 1, dtype=np.float) * self.T
         self._order = Order.INCREASING
 
+    def __repr__(self):
+        return f'<{self.__class__.__name__} x0={self.x0} T={self.T} N={self.N}>'
+
+    def __str__(self):
+        return f'{self.__class__.__name__}: {self.centers[0]} -- {self.centers[-1]}, N={self.N}, T={self.T}'
+
     @property
     def centers(self):
         """Return sample points."""
