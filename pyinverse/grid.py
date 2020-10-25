@@ -213,11 +213,11 @@ class FreqRegularGridBase(RegularGrid):
         elif axis == 0:
             n = self.axis_y._N_FULL
             p = np.exp(1j*self.axis_y.centers*self.axis_y.axis_t.x0)
-            x = self._IFFT(X_spectrum * np.atleast_2d(p).T / self.grid_s.axis_y.T, n=n)
+            x = self._IFFT(X_spectrum * np.atleast_2d(p).T / self.grid_s.axis_y.T, n=n, axis=0)
         elif axis == 1:
             n = self.axis_x._N_FULL
             p = np.exp(1j*self.axis_x.centers*self.axis_x.axis_t.x0)
-            x = self._IFFT(X_spectrum * np.atleast_2d(p) / self.grid_s.axis_x.T, n=n)
+            x = self._IFFT(X_spectrum * np.atleast_2d(p) / self.grid_s.axis_x.T, n=n, axis=1)
         else:
             assert False
 
