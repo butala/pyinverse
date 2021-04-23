@@ -33,9 +33,11 @@ def fbp(grid, grid_y, sinogram, backprojection_matrix=None):
     for k, theta_k in enumerate(np.radians(axis_theta.centers)):
         # compute backprojection of the ramp filtered projection
         if backprojection_matrix is None:
+            # calculate the backprojection by linear interpolation in the projection domain
             t_theta_k = X * np.cos(theta_k) + Y * np.sin(theta_k)
             S_k = np.interp(t_theta_k.flat, axis_t.centers, sinogram_ramp[:, k], left=np.nan, right=np.nan)
         else:
+            # use backprojection matrix if provided
             backprojection_k = backprojection_matrix[:, k::axis_theta.N]
             S_k = backprojection_k @ sinogram_ramp[:, k]
         S_k.shape = S.shape
