@@ -10,8 +10,45 @@ from .grid import RegularGrid
 from .rect import srect_2D_proj, square_proj_conv_rect
 
 
+def radon_translate(theta, r, x0, y0):
+    """ ??? """
+    return r - x0 * np.cos(theta) - y0 * np.sin(theta)
+
+
+def angle_pi(a, b):
+    """ ??? """
+    if a * b > 0:
+        return np.arctan(b / a)
+    elif b == 0:
+        return 0
+    elif a == 0 and b != 0:
+        return np.pi/2
+    elif a * b < 0:
+        return np.arctan(b / a) + np.pi
+    else:
+        assert False
+
+
+def radon_affine_scale(theta, r, alpha, beta):
+    """ ??? """
+    #assert theta >= 0 and theta < np.pi
+    if theta == 0:
+        a = beta
+        b = 0
+    elif theta == np.pi/2:
+        a = 0
+        b = alpha
+    else:
+        a = beta*np.cos(theta)
+        b = alpha*np.sin(theta)
+    theta_prime = angle_pi(a, b)
+    scale_factor = 1/np.hypot(a, b)
+    r_prime = r * np.abs(alpha) * beta * scale_factor
+    return theta_prime, r_prime, scale_factor
+
+
 def radon_matrix(grid, grid_y, a=0):
-    """"""
+    """ ??? """
     Ny, Nx = grid.shape
     Np, Na = grid_y.shape
 
