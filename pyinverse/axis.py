@@ -77,7 +77,7 @@ class RegularAxis:
         """
         x0 = start
         N = num
-        if endpoint:
+        if endpoint and num > 1:
             T = (stop - start) / (num - 1)
         else:
             T =  (stop - start) / num
