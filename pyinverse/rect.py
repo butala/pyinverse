@@ -85,3 +85,58 @@ def srect_2D_proj_ramp(theta, t, a, b):
             p = 1/(2*np.pi**2*np.cos(theta_k)*np.sin(theta_k)) * np.log(np.abs((t**2 - ((a*np.cos(theta_k)+b*np.sin(theta_k))/2)**2)/(t**2 - ((a*np.cos(theta_k)-b*np.sin(theta_k))/2)**2)))
         P[:, k] = p
     return P
+
+
+def rect_conv_rect(x, a=1, b=1):
+    """Scaled rect convovled wtih scaled rect (CHECK IF THIS DUPLICATES srect_conv_srect)."""
+    assert a > 0
+    assert b > 0
+    return step1(x + 1/(2*a) + 1/(2*b)) - step1(x - 1/(2*a) + 1/(2*b)) - step1(x + 1/(2*a) - 1/(2*b)) + step1(x - 1/(2*a) - 1/(2*b))
+
+
+def step(x):
+    """Heaviside step function u(x)."""
+    y = np.zeros_like(x)
+    y[x > 0] = 1
+    return y
+
+
+def step1(x):
+    """Convolution of step functions."""
+    y = np.zeros_like(x)
+    y[x > 0] = x[x > 0]
+    return y
+
+
+def step2(x):
+    """Convolution of three step functions."""
+    y = np.zeros_like(x)
+    y[x > 0] = 1/2 * x[x > 0]**2
+    return y
+
+
+def tri(x, b=1):
+    """Triangle function tri(bx) where tri(x) = rect(x) * rect(x)."""
+    assert b > 0
+    return b*step1(x + 1/b) - 2*b*step1(x) + b*step1(x - 1/b)
+
+
+def rtri(x, a, b):
+    """Convolution of rect(ax) with tri(bx)."""
+    assert a > 0
+    assert b > 0
+    return b*(step2(x + 1/(2*a) + 1/b) - 2*step2(x + 1/(2*a)) + step2(x + 1/(2*a) - 1/b) - step2(x - 1/(2*a) + 1/b) + 2*step2(x - 1/(2*a)) - step2(x - 1/(2*a) - 1/b))
+
+
+def square_proj_conv_rect(theta, r, a):
+    """Projection of square function convolved with rect(ax)."""
+    assert a > 0
+    theta = theta % (2*np.pi)
+    if theta in [np.pi/4, 3*np.pi/4, 5*np.pi/4, 7*np.pi/4]:
+        return np.sqrt(2) * a * rtri(r, a, 1/(np.sqrt(2)/2))
+    elif np.abs(theta) in [0, np.pi/2, np.pi, 3*np.pi/2]:
+        return a*rect_conv_rect(r, a=a)
+    else:
+        d_max = (np.abs(np.cos(theta)) + np.abs(np.sin(theta))) / 2
+        d_break = np.abs(np.abs(np.cos(theta)) - np.abs(np.sin(theta))) / 2
+        return 1/np.abs(np.cos(theta)*np.sin(theta)) * (d_max*a*rtri(r, a, 1/d_max) - d_break*a*rtri(r, a, 1/d_break))
