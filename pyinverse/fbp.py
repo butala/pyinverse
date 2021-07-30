@@ -6,7 +6,7 @@ def ramp_filter(axis_omega):
     coordinates specified in *axis_omega* in units of rad / s.
 
     """
-    return axis_omega.Hz().centers
+    return np.abs(axis_omega.Hz().centers)
 
 
 def fbp(grid, grid_y, sinogram, backprojection_matrix=None):
