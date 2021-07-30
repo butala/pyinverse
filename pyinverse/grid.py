@@ -64,6 +64,11 @@ class RegularGrid:
         # This also works for rfft?
         return self.axis_x.N_fast, self.axis_y.N_fast
 
+    def __getitem__(self, index):
+        """Return the (ith, jth) sample point."""
+        i, j = index
+        return self.axis_y[i], self.axis_x[j]
+
     def scale(self, Sx, Sy):
         """ ??? """
         return RegularGrid(self.axis_x.scale(Sx), self.axis_y.scale(Sy))
