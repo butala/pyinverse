@@ -26,7 +26,8 @@ def radon_matrix(grid, grid_y, a=0):
 
     if a != 0:
         # The Nx == Ny requirement could be removed --- use quadrature
-        # on the line case to approximate the beam integral.
+        # on the line case to approximate the beam integral or the
+        # hyperplane approach.
         assert Nx == Ny
         alpha = 1 / Tx
 
