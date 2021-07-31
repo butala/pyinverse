@@ -5,9 +5,8 @@ import numpy as np
 import scipy.signal
 
 from .util import robust_arcsin, robust_sqrt, besinc
+from .radon import radon_translate, radon_affine_scale
 
-
-# CLEANUP THINGS THAT USE np.tile --- BROADCASTING SHOULD BE SUFFICIENT
 
 def ellipse_bb(x, y, major, minor, angle_deg):
     """
@@ -58,7 +57,10 @@ def integrate_indicator_function(indicator_fun, bounds, N=20):
 
 
 def ellipse_ft(ellipse, fx, fy):
-    """ ??? """
+    """Evaluate the 2D Fourier transform of *ellipse* at horizontal and
+    vertical frequencies *fx* and *fy* (given in Hz).
+
+    """
     fx_rot = fx * ellipse.cos_phi + fy * ellipse.sin_phi
     fy_rot = fy * ellipse.cos_phi - fx * ellipse.sin_phi
 
@@ -70,6 +72,17 @@ def ellipse_ft(ellipse, fx, fy):
     return Z * (ellipse.a * ellipse.b) * ellipse.rho
 
 
+def proj_disk(r, r0=1, alpha=1):
+    """Projection of the disk function evaluated at coordinates *r*. The
+    radius of the disk is *r0* and the magnitude (height) is *alpha*.
+
+    """
+    y = np.zeros_like(r)
+    I = np.abs(r) <= r0
+    y[I] = 2*alpha*np.sqrt(r0**2 - r[I]**2)
+    return y
+
+
 def ellipse_proj(ellipse, sinogram_grid, Y=None):
     """Calculate line integrals (from analytic expression) of *ellipse* at
     angles specified in degrees and projection axis sample points
@@ -78,6 +91,26 @@ def ellipse_proj(ellipse, sinogram_grid, Y=None):
     angles array). If *Y* is given, accumulate the sinogram in-place.
 
     """
+    # Implementation using Radon transform properties.
+    if Y is None:
+        Y = np.zeros((sinogram_grid.shape))
+    for k, theta_k in enumerate(np.radians(sinogram_grid.axis_x)):
+        theta_prime = theta_k - ellipse.phi_rad
+        t_prime = radon_translate(theta_k, sinogram_grid.axis_y.centers, ellipse.x0, ellipse.y0)
+        theta_prime2, t_prime2, scale_factor = radon_affine_scale(theta_prime, t_prime, 1/ellipse.a, 1/ellipse.b)
+        Y[:, k] += ellipse.rho * proj_disk(t_prime2) * scale_factor
+    return Y
+
+
+def ellipse_proj_direct(ellipse, sinogram_grid, Y=None):
+    """Calculate line integrals (from analytic expression) of *ellipse* at
+    angles specified in degrees and projection axis sample points
+    given by the x and y axes, respectively, of
+    *sinogram_grid*. Return the resultant sinogram (# projections x #
+    angles array). If *Y* is given, accumulate the sinogram in-place.
+
+    """
+    # Implementation from formula given in Kak and Slaney.
     thetas_deg, axis_t = sinogram_grid.axis_x, sinogram_grid.axis_y
     thetas_rad = np.radians(thetas_deg)
     THETA, T = np.meshgrid(thetas_rad, axis_t.centers)
@@ -93,75 +126,42 @@ def ellipse_proj(ellipse, sinogram_grid, Y=None):
     return Y
 
 
-# WHY ISN'T BEAM WIDTH A PARAMETER? Or, is this implicit and
-# controllable in how axis_t is chosen?
-def ellipse_proj_rect(ellipse, sinogram_grid, Y=None):
-    """Calculate "beam" integrals (from analytic expression) of *ellipse*
-    at angles specified in degrees and projection axis sample points
-    given by the x and y axes, respectively, of
-    *sinogram_grid*. Return the resultant sinogram (# projections x #
-    angles array). If *Y* is given, accumulate the sinogram in-place.
-
-    A "beam" integral is defined as follows. Let y(theta, t) equal the
-    line integral of the ellipse at angle theta and projection axis
-    coordinate t. The sinogram elements returned by
-    :func:`ellipse_proj` are equal to y(theta_k, t_k). In contrast, a
-    "beam" integral is given by
-
-    y_beam(theta_k, t_k) = \int_{t_k - T/2}^{t_k + T/2} y(theta_k, \tau) d\tau
-
-    where T is equal to the length between uniformly spaced projection
-    axis sample points.
+def integral_sqrt_a2_minus_x2(x, a):
+    """Integral of $\sqrt(a^2 - x^2)$ --- see (30) at
+    http://integral-table.com.
 
     """
-    thetas_deg, axis_t = sinogram_grid.axis_x, sinogram_grid.axis_y
+    return 0.5*x*np.sqrt(a**2 - x**2) + 0.5*a**2*np.arctan2(x, np.sqrt(a**2 - x**2))
 
-    na = len(thetas_deg)
-    thetas_rad = np.radians(thetas_deg)
 
-    t_center = axis_t.centers
-    t_borders = axis_t.borders
+def ellipse_proj_rect(ellipse, sinogram_grid, a, Y=None):
+    """Calculate line integrals (from analytic expression) of *ellipse* at
+    angles specified in degrees and projection axis sample points
+    given by the x and y axes, respectively, of *sinogram_grid*
+    convolved by $rect(a t)$. Return the resultant sinogram (#
+    projections x # angles array). If *Y* is given, accumulate the
+    sinogram in-place.
 
-    THETA, T = np.meshgrid(thetas_rad, t_center)
-
-    ti = t_borders[:-1]
-    ti.shape = axis_t.N, 1
-    ti_plus_one = t_borders[1:]
-    ti_plus_one.shape = axis_t.N, 1
-    T1 = np.tile(ti, (1, na))
-    T2 = np.tile(ti_plus_one, (1, na))
-
-    phi_rad = math.radians(ellipse.phi_deg)
-    ALPHA = THETA - phi_rad
-    s = math.sqrt(ellipse.x0**2 + ellipse.y0**2)
-    gamma = math.atan2(ellipse.y0, ellipse.x0)
-    TAU = s * np.cos(gamma - THETA)
-
-    Z = np.sqrt(ellipse.a**2 * np.cos(ALPHA)**2 + ellipse.b**2 * np.sin(ALPHA)**2)
-
-    B1 = TAU - Z
-    B2 = TAU + Z
-
-    K = np.logical_and(T1 <= B2, T2 >= B1)
-
-    T1[T1 < B1] = B1[T1 < B1]
-    T2[T2 > B2] = B2[T2 > B2]
-
-    A = Z[K]**2 - TAU[K]**2
-    B = 2*TAU[K]
-    C = -1
-
-    DELTA = 4 * A * C - B**2
-
-    J1 = -1 * robust_arcsin((2*C*T1[K] + B)/robust_sqrt(-DELTA))
-    I1 = (2*C*T1[K] + B)*robust_sqrt(A + B*T1[K] + C*T1[K]**2)/(4*C) + DELTA/(8*C)*J1
-
-    J2 = -1 * robust_arcsin((2*C*T2[K] + B)/robust_sqrt(-DELTA))
-    I2 = (2*C*T2[K] + B)*robust_sqrt(A + B*T2[K] + C*T2[K]**2)/(4*C) + DELTA/(8*C)*J2
+    """
     if Y is None:
-        Y = np.zeros((axis_t.N, na))
-    Y[K] += ellipse.rho * ellipse.a * ellipse.b / Z[K]**2 * (I2 - I1) * axis_t.N
+        Y = np.zeros((sinogram_grid.shape))
+    for k, theta_k in enumerate(np.radians(sinogram_grid.axis_x)):
+        theta_prime = theta_k - ellipse.phi_rad
+        #theta_prime2 = ellipse.phi_rad + theta_rad
+        t_prime = radon_translate(theta_k, sinogram_grid.axis_y.centers, ellipse.x0, ellipse.y0)
+        theta_prime2, t_prime2, scale_factor = radon_affine_scale(theta_prime, t_prime, 1/ellipse.a, 1/ellipse.b)
+        a_prime = a / scale_factor * ellipse.a * ellipse.b
 
+        I = np.abs(t_prime2) < 1 + 1/(2*a_prime)
+        t_prime2_left = t_prime2[I] - 1/(2*a_prime)
+        t_prime2_left[t_prime2_left < -1] = -1
+        t_prime2_right = t_prime2[I] + 1/(2*a_prime)
+        t_prime2_right[t_prime2_right > 1] = 1
+
+        I1 = integral_sqrt_a2_minus_x2(t_prime2_right, 1)
+        I2 = integral_sqrt_a2_minus_x2(t_prime2_left, 1)
+
+        Y[I, k] += 2*ellipse.rho*scale_factor*a_prime*(I1 - I2)
     return Y
 
 
@@ -181,6 +181,7 @@ def ellipse_proj_ft(ellipse, sinogram_ft_grid, Y_ft=None):
     return Y_ft
 
 
+"""
 def ellipse_proj_rect_ft(ellipse, sinogram_ft_grid, Y_ft=None):
     """ ??? """
     Y_ft = ellipse_proj_ft(ellipse, sinogram_ft_grid, Y_ft=Y_ft)
@@ -189,6 +190,7 @@ def ellipse_proj_rect_ft(ellipse, sinogram_ft_grid, Y_ft=None):
     W = np.sinc(sinogram_ft_grid.axis_y.centers / alpha)
     Y_ft *= np.atleast_2d(W).T
     return Y_ft
+"""
 
 
 def ellipse_raster(ellipse, regular_grid, doall=False, A=None, N=20):
@@ -308,16 +310,20 @@ class Ellipse:
         """
         return ellipse_ft(self, *regular_grid.centers)
 
-    def sinogram(self, sinogram_grid, rect=False, Y=None):
+    def sinogram(self, sinogram_grid, rect=False, a=None, Y=None, _direct=False):
         """Return the sinogram of the ellipse. If *rect*, use "beam"
         integration. Otherwise, use line integration. (see
         :func:`ellipse_proj` and :func:`ellipse_proj_rect`)
 
         """
         if rect:
-            Y = ellipse_proj_rect(self, sinogram_grid, Y=Y)
+            assert a is not None
+            Y = ellipse_proj_rect(self, sinogram_grid, a, Y=Y)
         else:
-            Y = ellipse_proj(self, sinogram_grid, Y=Y)
+            if _direct:
+                Y = ellipse_proj_direct(self, sinogram_grid, Y=Y)
+            else:
+                Y = ellipse_proj(self, sinogram_grid, Y=Y)
         return Y
 
     def proj_ft(self, sinogram_ft_grid, rect=False, Y_ft=None):
