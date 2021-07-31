@@ -147,7 +147,6 @@ def ellipse_proj_rect(ellipse, sinogram_grid, a, Y=None):
         Y = np.zeros((sinogram_grid.shape))
     for k, theta_k in enumerate(np.radians(sinogram_grid.axis_x)):
         theta_prime = theta_k - ellipse.phi_rad
-        #theta_prime2 = ellipse.phi_rad + theta_rad
         t_prime = radon_translate(theta_k, sinogram_grid.axis_y.centers, ellipse.x0, ellipse.y0)
         theta_prime2, t_prime2, scale_factor = radon_affine_scale(theta_prime, t_prime, 1/ellipse.a, 1/ellipse.b)
         a_prime = a / scale_factor * ellipse.a * ellipse.b
