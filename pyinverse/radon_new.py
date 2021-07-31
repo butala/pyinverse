@@ -31,7 +31,6 @@ def angle_pi(a, b):
 
 def radon_affine_scale(theta, r, alpha, beta):
     """ ??? """
-    #assert theta >= 0 and theta < np.pi
     if theta == 0:
         a = beta
         b = 0
