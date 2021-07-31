@@ -181,7 +181,7 @@ def ellipse_proj_ft(ellipse, sinogram_ft_grid, Y_ft=None):
     return Y_ft
 
 
-"""
+'''
 def ellipse_proj_rect_ft(ellipse, sinogram_ft_grid, Y_ft=None):
     """ ??? """
     Y_ft = ellipse_proj_ft(ellipse, sinogram_ft_grid, Y_ft=Y_ft)
@@ -190,7 +190,7 @@ def ellipse_proj_rect_ft(ellipse, sinogram_ft_grid, Y_ft=None):
     W = np.sinc(sinogram_ft_grid.axis_y.centers / alpha)
     Y_ft *= np.atleast_2d(W).T
     return Y_ft
-"""
+'''
 
 
 def ellipse_raster(ellipse, regular_grid, doall=False, A=None, N=20):
