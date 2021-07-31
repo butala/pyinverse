@@ -68,13 +68,6 @@ def radon_matrix(grid, grid_y, a=0):
     indices = []
     indptr = [0]
 
-    if a != 0:
-        # The Nx == Ny requirement could be removed --- use quadrature
-        # on the line case to approximate the beam integral or the
-        # hyperplane approach.
-        assert Nx == Ny
-        alpha = 1 / Tx
-
     for i in tqdm(range(Ny)):
         for j in range(Nx):
             center_y, center_x = grid[i, j]
@@ -87,8 +80,14 @@ def radon_matrix(grid, grid_y, a=0):
                     I_nz = np.nonzero(p_theta_k[:, 0])[0]
                     data_k = p_theta_k[I_nz, 0]
                 else:
-                    # beam (Nx == Ny)
-                    p_theta_k = square_proj_conv_rect(theta_k, alpha * t_prime, a) / a / alpha
+                    if Nx == Ny:
+                        # beam: square grid
+                        p_theta_k = Tx * square_proj_conv_rect(theta_k, t_prime / Tx, a * Tx)
+                    else:
+                        # bream: rectangular grid
+                        theta_prime, t_prime2, scale_factor = radon_affine_scale(theta_k, t_prime, 1/Tx, 1/Ty)
+                        a_prime = a * np.hypot(Tx*np.cos(theta_k), Ty*np.sin(theta_k))
+                        p_theta_k = scale_factor * square_proj_conv_rect(theta_prime, t_prime2, a_prime)
                     I_nz = np.nonzero(p_theta_k)[0]
                     data_k = p_theta_k[I_nz]
                 data.extend(data_k)
@@ -168,10 +167,8 @@ def main(argv=None):
     if args.beam is False:
         a = 0
     elif args.beam is None:
-        assert n == m
-        a = grid.axis_x.T / grid_y.axis_y.T
+        a = 1 / grid_y.axis_y.T
     else:
-        assert n == m
         a = args.beam
 
     R = radon_matrix(grid, grid_y, a=a)
