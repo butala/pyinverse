@@ -10,13 +10,15 @@ from .grid import RegularGrid
 from .rect import srect_2D_proj, square_proj_conv_rect
 
 
-def radon_translate(theta, r, x0, y0):
-    """ ??? """
-    return r - x0 * np.cos(theta) - y0 * np.sin(theta)
+def radon_translate(theta_rad, r, x0, y0):
+    """Translation property of the Radon transform."""
+    return r - x0 * np.cos(theta_rad) - y0 * np.sin(theta_rad)
 
 
 def angle_pi(a, b):
-    """ ??? """
+    """The angle pi function defined in Fessler's book equation (3.2.16).
+
+    """
     if a * b > 0:
         return np.arctan(b / a)
     elif b == 0:
@@ -29,17 +31,17 @@ def angle_pi(a, b):
         assert False
 
 
-def radon_affine_scale(theta, r, alpha, beta):
-    """ ??? """
-    if theta == 0:
+def radon_affine_scale(theta_rad, r, alpha, beta):
+    """The affine scaling property of the Radon transform."""
+    if theta_rad == 0:
         a = beta
         b = 0
-    elif theta == np.pi/2:
+    elif theta_rad == np.pi/2:
         a = 0
         b = alpha
     else:
-        a = beta*np.cos(theta)
-        b = alpha*np.sin(theta)
+        a = beta*np.cos(theta_rad)
+        b = alpha*np.sin(theta_rad)
     theta_prime = angle_pi(a, b)
     scale_factor = 1/np.hypot(a, b)
     r_prime = r * np.abs(alpha) * beta * scale_factor
@@ -47,7 +49,13 @@ def radon_affine_scale(theta, r, alpha, beta):
 
 
 def radon_matrix(grid, grid_y, a=0):
-    """ ??? """
+    """Calculate the matrix form of the Radon transform for an object
+    specified on *grid* and projections defined on *grid_y*. The
+    parameter *a* specifies the beam width (rect integration applied
+    to projections --- use delta function line integration when
+    *a*=0).
+
+    """
     Ny, Nx = grid.shape
     Np, Na = grid_y.shape
 
