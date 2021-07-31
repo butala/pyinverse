@@ -180,16 +180,13 @@ def ellipse_proj_ft(ellipse, sinogram_ft_grid, Y_ft=None):
     return Y_ft
 
 
-'''
-def ellipse_proj_rect_ft(ellipse, sinogram_ft_grid, Y_ft=None):
+def ellipse_proj_rect_ft(ellipse, sinogram_ft_grid, a, Y_ft=None):
     """ ??? """
     Y_ft = ellipse_proj_ft(ellipse, sinogram_ft_grid, Y_ft=Y_ft)
     Ts_t = sinogram_ft_grid.axis_y.axis_t.T
-    alpha = 1 / (Ts_t / 2)
-    W = np.sinc(sinogram_ft_grid.axis_y.centers / alpha)
+    W = np.sinc(sinogram_ft_grid.axis_y.centers / a)
     Y_ft *= np.atleast_2d(W).T
     return Y_ft
-'''
 
 
 def ellipse_raster(ellipse, regular_grid, doall=False, A=None, N=20):
@@ -325,10 +322,11 @@ class Ellipse:
                 Y = ellipse_proj(self, sinogram_grid, Y=Y)
         return Y
 
-    def proj_ft(self, sinogram_ft_grid, rect=False, Y_ft=None):
+    def proj_ft(self, sinogram_ft_grid, rect=False, a=None, Y_ft=None):
         """ ??? """
         if rect:
-            Y_ft = ellipse_proj_rect_ft(self, sinogram_ft_grid, Y_ft=Y_ft)
+            assert a is not None
+            Y_ft = ellipse_proj_rect_ft(self, sinogram_ft_grid, a, Y_ft=Y_ft)
         else:
             Y_ft = ellipse_proj_ft(self, sinogram_ft_grid, Y_ft=Y_ft)
         return Y_ft
