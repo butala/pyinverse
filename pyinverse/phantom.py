@@ -77,18 +77,18 @@ class Phantom:
             A = e.raster(regular_grid, A=A)
         return A
 
-    def sinogram(self, sinogram_grid, rect=False):
+    def sinogram(self, sinogram_grid, rect=False, a=None):
         """
         """
         Y = np.zeros(sinogram_grid.shape)
         for e in self._ellipses:
-            e.sinogram(sinogram_grid, rect=rect, Y=Y)
+            e.sinogram(sinogram_grid, rect=rect, a=a, Y=Y)
         return Y
 
-    def proj_ft(self, sinogram_ft_grid, rect=False):
+    def proj_ft(self, sinogram_ft_grid, rect=False, a=None):
         """
         """
         Y_ft = np.zeros(sinogram_ft_grid.shape, dtype=np.complex)
         for e in self._ellipses:
-            e.proj_ft(sinogram_ft_grid, rect=rect, Y_ft=Y_ft)
+            e.proj_ft(sinogram_ft_grid, rect=rect, a=a, Y_ft=Y_ft)
         return Y_ft
