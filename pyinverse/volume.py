@@ -26,12 +26,7 @@ import numpy as np
 
 
 def volume_cal(m,d,A,b):
-
     sum_m = 0
-
-#     if(m<2):
-#         print("constraint failure!!!")
-
 
     # This part detact if this is the base case
     if d==1:
@@ -44,87 +39,56 @@ def volume_cal(m,d,A,b):
                 uplim.append(b[i]/A[i][0])
             else:
                 continue
-#         print("basecase:",min(uplim)-max(lowlim))
-#         print("uplim:",uplim)
-#         print("lowlim:",lowlim)
         if(min(uplim)-max(lowlim)>0):
             return min(uplim)-max(lowlim)
         else:
-#             print("no length")
             return 0
-
 
     # if not, the matrix needs to be transformed into lower dimensions
     else:
-
-
         #first we need to filter out repeated constraints
-
-        A_t = A/1
-        b_t = b/1
-
         A_math = np.zeros((m,d))
         b_math = np.zeros(m)
         m_count = 0
 
-
         for i in range(m):
             for j in range(d):
-                if A[i][j]!=0:
-                    A_t[i] = A[i]/abs(A[i][j])
-                    b_t[i] = b[i]/abs(A[i][j])
+                if A[i][j] !=0:
+                    A[i] = A[i]/abs(A[i][j])
+                    b[i] = b[i]/abs(A[i][j])
                     break
-
 
         for i in range(m):
-            A_me = A_t-A_t[i]
-
-#             print("A_me:",A_me)
-
-            exist_smaller = 0
-#             cross_area_none = 0
-            b_now = b_t[i]
+            A_me = A-A[i]
+            exist_smaller = False
 
             for c in range(m):
-                A_temp = A_t[c]+A_t[i]
-                if min(A_temp)==0 and max(A_temp)==0 and b_t[c]*-1>b_t[i] and (min(A_t[c])!=0 or max(A_t[c])!=0) and (min(A_t[i])!=0 or max(A_t[i])!=0):
-#                     cross_area_none = 1
+                A_temp = A[c]+A[i]
+                if min(A_temp)==0 and max(A_temp)==0 and b[c]*-1>b[i] and (min(A[c])!=0 or max(A[c])!=0) and (min(A[i])!=0 or max(A[i])!=0):
                     return 0
+                    #break
+
+                if min(A_me[c])==0 and max(A_me[c])==0 and (b[c]<b[i] or (b[c]==b[i] and c<i)):
+                    exist_smaller = True
                     break
 
-                if min(A_me[c])==0 and max(A_me[c])==0 and (b_t[c]<b_t[i] or (b_t[c]==b_t[i] and c<i)):
-                    exist_smaller = 1
-                    break
-
-
-
-            if exist_smaller!=1:
-                A_math[m_count] = A_t[i]
-                b_math[m_count] = b_t[i]
+            if not exist_smaller:
+                A_math[m_count] = A[i]
+                b_math[m_count] = b[i]
                 m_count = m_count+1
-
-#             if cross_area_none!=0:
-#                 return 0
-
 
         #here on we can use A_math and b_math to calculate as before
         m_new = m_count
         d_new = d
-#         print("A_math:",A_math)
-#         print("b_math:",b_math)
-
 
         for i in range(m_new):
-
             if b_math[i]==0:
                 continue
 
             else:
-
                 for j in range(d_new):
                     if A_math[i][j]!=0:
                         break
-
 
                 fix_aij = A_math[i][j]
                 fix_bi = b_math[i]
@@ -132,10 +96,6 @@ def volume_cal(m,d,A,b):
 
                 if fix_aij==0:
                     continue
-
-#                 print("fix_aij:",fix_aij)
-#                 print("fix_bi:",fix_bi)
-#                 print("i_line:",i_line)
 
                 # transform into lower dimension
                 cal_A = np.zeros((m_new,d_new))
@@ -146,21 +106,13 @@ def volume_cal(m,d,A,b):
                     cal_A[row] = A_math[row]-i_line*mult
                     cal_b[row] = b_math[row]-fix_bi*mult
 
-#                 print("A:",A)
-#                 print("cal_A:",cal_A)
-#                 print("cal_b:",cal_b)
-
-
                 temp_A0 = np.delete(cal_A,i,axis=0)
                 temp_A = np.delete(temp_A0,j,axis=1)
                 temp_b = np.delete(cal_b,i,axis=0)
 
-#                 print("temp_A:",temp_A)
-#                 print("temp_b:",temp_b)
+                #sum_m = sum_m+(fix_bi*volume_cal(m_new-1,d_new-1,temp_A,temp_b)/d_new)/abs(fix_aij)
+                sum_m += (fix_bi*volume_cal(m_new-1,d_new-1,temp_A,temp_b)/d_new)/abs(fix_aij)
 
-                sum_m = sum_m+(fix_bi*volume_cal(m_new-1,d_new-1,temp_A,temp_b)/d_new)/abs(fix_aij)
-
-#                 print("sum:",sum_m)
         return sum_m
 
 
@@ -190,7 +142,6 @@ def read_hyperplanes(filename):
             elif (counter>=4 and counter<4+G_m):
                 op = map(str,line.split())
                 row = list(op)
-                #print(row)
                 s_c = 0
                 for i in row:
                     G_Hyperplanes[counter-4][s_c] = float(i)
@@ -198,3 +149,10 @@ def read_hyperplanes(filename):
 
             counter = counter+1
     return [G_m,G_d,G_Hyperplanes]
+
+
+
+if __name__ == '__main__':
+    filename = "/Users/butala/src/pyinverse/notebooks/polytope_db/cube/cube_5.ine"
+    m, d, G = read_hyperplanes(filename)
+    print("Volume using Lass:",volume_cal(m, d, G[:,1:d+1], G[:,[0]]))
