@@ -1,5 +1,8 @@
 import sys
+import multiprocessing
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
+from functools import partial
+from itertools import product
 
 from tqdm import tqdm
 import numpy as np
@@ -48,7 +51,46 @@ def radon_affine_scale(theta_rad, r, alpha, beta):
     return theta_prime, r_prime, scale_factor
 
 
-def radon_matrix(grid, grid_y, a=0):
+def radon_matrix_ij(grid, grid_y, ij, a=0):
+    """
+    """
+    data = []
+    indices = []
+
+    Ny, Nx = grid.shape
+    Np, Na = grid_y.shape
+
+    Tx = grid.axis_x.T
+    Ty = grid.axis_y.T
+
+    i, j = ij
+    center_y, center_x = grid[i, j]
+    theta_rad = np.radians(grid_y.axis_x)
+
+    for k, theta_k in enumerate(theta_rad):
+        t_prime = grid_y.axis_y.centers - center_x * np.cos(theta_k) - center_y * np.sin(theta_k)
+        if a == 0:
+            # line
+            p_theta_k = srect_2D_proj([theta_k], t_prime, 1/Tx, 1/Ty)
+            I_nz = np.nonzero(p_theta_k[:, 0])[0]
+            data_k = p_theta_k[I_nz, 0]
+        else:
+            if Nx == Ny:
+                # beam: square grid
+                p_theta_k = Tx * square_proj_conv_rect(theta_k, t_prime / Tx, a * Tx)
+            else:
+                # bream: rectangular grid
+                theta_prime, t_prime2, scale_factor = radon_affine_scale(theta_k, t_prime, 1/Tx, 1/Ty)
+                a_prime = a * np.hypot(Tx*np.cos(theta_k), Ty*np.sin(theta_k))
+                p_theta_k = scale_factor * square_proj_conv_rect(theta_prime, t_prime2, a_prime)
+            I_nz = np.nonzero(p_theta_k)[0]
+            data_k = p_theta_k[I_nz]
+        data.extend(data_k)
+        indices.extend(I_nz * Na + k)
+    return data, indices
+
+
+def radon_matrix(grid, grid_y, a=0, n_cpu=multiprocessing.cpu_count()):
     """Calculate the matrix form of the Radon transform for an object
     specified on *grid* and projections defined on *grid_y*. The
     parameter *a* specifies the beam width (rect integration applied
@@ -62,38 +104,19 @@ def radon_matrix(grid, grid_y, a=0):
     Tx = grid.axis_x.T
     Ty = grid.axis_y.T
 
-    theta_rad = np.radians(grid_y.axis_x)
-
     data = []
     indices = []
     indptr = [0]
 
-    for i in tqdm(range(Ny)):
-        for j in range(Nx):
-            center_y, center_x = grid[i, j]
-            column_count = 0
-            for k, theta_k in enumerate(theta_rad):
-                t_prime = grid_y.axis_y.centers - center_x * np.cos(theta_k) - center_y * np.sin(theta_k)
-                if a == 0:
-                    # line
-                    p_theta_k = srect_2D_proj([theta_k], t_prime, 1/Tx, 1/Ty)
-                    I_nz = np.nonzero(p_theta_k[:, 0])[0]
-                    data_k = p_theta_k[I_nz, 0]
-                else:
-                    if Nx == Ny:
-                        # beam: square grid
-                        p_theta_k = Tx * square_proj_conv_rect(theta_k, t_prime / Tx, a * Tx)
-                    else:
-                        # bream: rectangular grid
-                        theta_prime, t_prime2, scale_factor = radon_affine_scale(theta_k, t_prime, 1/Tx, 1/Ty)
-                        a_prime = a * np.hypot(Tx*np.cos(theta_k), Ty*np.sin(theta_k))
-                        p_theta_k = scale_factor * square_proj_conv_rect(theta_prime, t_prime2, a_prime)
-                    I_nz = np.nonzero(p_theta_k)[0]
-                    data_k = p_theta_k[I_nz]
-                data.extend(data_k)
-                indices.extend(I_nz * Na + k)
-                column_count += len(I_nz)
-            indptr.append(indptr[-1] + column_count)
+    ij = product(range(Ny), range(Nx))
+
+    radon_matrix_helper = partial(radon_matrix_ij, grid, grid_y, a=a)
+
+    with multiprocessing.Pool(n_cpu) as pool:
+        for data_ij, indices_ij in tqdm(pool.imap(radon_matrix_helper, ij), total=Nx*Ny):
+            data.extend(data_ij)
+            indices.extend(indices_ij)
+            indptr.append(indptr[-1] + len(data_ij))
     H = scipy.sparse.csc_matrix((data, indices, indptr), shape=(Na*Np, Nx*Ny))
     return H
 
