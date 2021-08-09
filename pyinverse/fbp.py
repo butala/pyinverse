@@ -46,7 +46,8 @@ def fbp(grid, grid_y, sinogram, radon_matrix=None, **kwds):
 
     """
     assert grid_y.shape == sinogram.shape
-    backprojector = BackProjector(grid, grid_y, radon_matrix=radon_matrix, **kwds)
+    if radon_matrix is not None:
+        backprojector = BackProjector(grid, grid_y, radon_matrix=radon_matrix, **kwds)
     axis_theta = grid_y.axis_x
     axis_t = grid_y.axis_y
     grid_y_omega0, FT0_sinogram = grid_y.spectrum(sinogram, real=True, axis=0)
