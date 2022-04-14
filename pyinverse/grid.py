@@ -1,9 +1,11 @@
 import imageio
+from tqdm import tqdm
 import numpy as np
 import scipy.fft
 
 
 from .axis import Order, RegularAxis, FFTRegularAxis, RFFTRegularAxis
+from .rect import srect_2D_proj
 
 
 class RegularGrid:
@@ -141,6 +143,7 @@ class RegularGrid:
         """ ??? """
         return self.plot(ax, X, interpolation=interpolation, flip_y=True, **kwds)
 
+
     # y = rows, x = cols
     # s order is (y, x)
     def spectrum_grid(self, s=None, axis=None, real=False):
@@ -169,6 +172,7 @@ class RegularGrid:
         else:
             return FreqRegularGrid(grid_freq_axis[1], grid_freq_axis[0], self)
 
+
     # (real, axis) -> appropriate (r)fft function
     _FFT_MAP = {(True, None):  lambda x, s: scipy.fft.rfft2(x, s=s),
                 (True, 0):     lambda x, s: scipy.fft.rfft(x, n=s[0], axis=0),
@@ -176,6 +180,7 @@ class RegularGrid:
                 (False, None): lambda x, s: scipy.fft.fft2(x, s=s),
                 (False, 0):    lambda x, s: scipy.fft.fft(x, n=s[0], axis=0),
                 (False, 1):    lambda x, s: scipy.fft.fft(x, n=s[1], axis=1)}
+
 
     def spectrum(self, x, s=None, axis=None, real=False):
         """ ??? """
@@ -199,6 +204,33 @@ class RegularGrid:
         else:
             assert False
         return grid_freq, X_spectrum
+
+
+    def sinogram(self, sinogram_grid, A, deg=True):
+        """Calculate the sinogram of the array *A* which contains the
+        densities in each of the grid elements. The projections are
+        calculated according to *sinogram_grid* which specifies the
+        projection angles (the x-axis) and projection sample points
+        (the y-axis). The angular units of the projections are in
+        given in degrees if `deg=True`. Return an array (shape = # of
+        projection samples x # of angles).
+
+        """
+        assert self.shape == A.shape
+        if deg:
+            theta_rad = np.radians(sinogram_grid.axis_x.centers)
+        else:
+            theta_rad = sinogram_grid.axis_x.centers
+        proj = np.zeros(sinogram_grid.shape)
+        T_x = self.axis_x.T
+        T_y = self.axis_y.T
+        for k, theta_k in tqdm(enumerate(theta_rad), total=len(theta_rad)):
+            cos_theta = np.cos(theta_k)
+            sin_theta = np.sin(theta_k)
+            for j, a in enumerate(self.axis_x.centers):
+                for i, b in enumerate(self.axis_y.centers):
+                    proj[:, k] += srect_2D_proj([theta_k], sinogram_grid.axis_y.centers - a*cos_theta - b*sin_theta, 1/T_x, 1/T_y).flat * A[i, j]
+        return proj
 
 
 # grid_check is abstract
