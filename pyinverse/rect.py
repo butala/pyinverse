@@ -153,7 +153,7 @@ def rect_conv_radon_rect(theta, r, a, b, alpha):
     assert a > 0
     assert b > 0
     assert alpha > 0
-    theta = theta % (2*np.pi)
+    theta %= 2*np.pi
     c_t = np.cos(theta)
     s_t = np.sin(theta)
     if np.allclose(abs(a*c_t), abs(b*s_t)):
