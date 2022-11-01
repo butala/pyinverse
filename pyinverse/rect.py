@@ -1,7 +1,7 @@
 import numpy as np
 
 """
-The best reference for this is Jeff Fessler's course notes: https://web.eecs.umich.edu/~fessler/course/516/l/c-tomo.pdf
+The best reference for this is Jeff Fessler's course notes: https://web.eecs.umich.edu/~fessler/book/
 
 This is from a course he taught: https://web.eecs.umich.edu/~fessler/course/516/
 """
@@ -128,15 +128,42 @@ def rtri(x, a, b):
     return b*(step2(x + 1/(2*a) + 1/b) - 2*step2(x + 1/(2*a)) + step2(x + 1/(2*a) - 1/b) - step2(x - 1/(2*a) + 1/b) + 2*step2(x - 1/(2*a)) - step2(x - 1/(2*a) - 1/b))
 
 
-def square_proj_conv_rect(theta, r, a):
-    """Projection of square function convolved with rect(ax)."""
+def radon_rect(theta, r, a, b):
+    """Fessler (3.2.40)"""
     assert a > 0
+    assert b > 0
     theta = theta % (2*np.pi)
-    if theta in [np.pi/4, 3*np.pi/4, 5*np.pi/4, 7*np.pi/4]:
-        return np.sqrt(2) * a * rtri(r, a, 1/(np.sqrt(2)/2))
-    elif np.abs(theta) in [0, np.pi/2, np.pi, 3*np.pi/2]:
-        return a*rect_conv_rect(r, a=a)
+    c_t = np.cos(theta)
+    s_t = np.sin(theta)
+    if np.allclose(abs(a*c_t), abs(b*s_t)):
+        return np.hypot(a, b) * tri*(r/((a*b)/np.hypot(a, b)))
+    elif abs(theta) in [0, np.pi]:
+        return b * rect(r/a)
+    elif abs(theta) in [np.pi/2, 3*np.pi/2]:
+        return a * rect(r/b)
     else:
-        d_max = (np.abs(np.cos(theta)) + np.abs(np.sin(theta))) / 2
-        d_break = np.abs(np.abs(np.cos(theta)) - np.abs(np.sin(theta))) / 2
-        return 1/np.abs(np.cos(theta)*np.sin(theta)) * (d_max*a*rtri(r, a, 1/d_max) - d_break*a*rtri(r, a, 1/d_break))
+        d_max = (abs(a*c_t) + abs(b*s_t)) / 2
+        d_break = abs(abs(a*c_t) - abs(b*s_t)) / 2
+        l_max = abs(a*b)/max(abs(a*c_t), abs(b*s_t))
+        return 1/abs(c_t*s_t) * (d_max*tri(r/d_max) - d_break*tri(r/d_break))
+
+
+def rect_conv_radon_rect(theta, r, a, b, alpha):
+    """Based off of Fessler (3.2.40)"""
+    assert a > 0
+    assert b > 0
+    assert alpha > 0
+    theta = theta % (2*np.pi)
+    c_t = np.cos(theta)
+    s_t = np.sin(theta)
+    if np.allclose(abs(a*c_t), abs(b*s_t)):
+        return np.hypot(a, b) * rtri(r, 1/alpha, 1/((a*b)/np.hypot(a, b)))
+    elif abs(theta) in [0, np.pi]:
+        return b * rect_conv_rect(r, 1/a, 1/alpha)
+    elif abs(theta) in [np.pi/2, 3*np.pi/2]:
+        return a * rect_conv_rect(r, 1/b, 1/alpha)
+    else:
+        d_max = (abs(a*c_t) + abs(b*s_t)) / 2
+        d_break = abs(abs(a*c_t) - abs(b*s_t)) / 2
+        l_max = abs(a*b)/max(abs(a*c_t), abs(b*s_t))
+        return 1/abs(c_t*s_t) * (d_max*rtri(r, 1/alpha, 1/d_max) - d_break*rtri(r, 1/alpha, 1/d_break))
