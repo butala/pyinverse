@@ -10,7 +10,7 @@ import scipy.sparse
 
 from .axis import RegularAxis
 from .grid import RegularGrid
-from .rect import srect_2D_proj, square_proj_conv_rect
+from .rect import srect_2D_proj, rect_conv_radon_rect
 
 
 def radon_translate(theta_rad, r, x0, y0):
@@ -75,22 +75,15 @@ def radon_matrix_ij(grid, grid_y, ij, a=0):
             I_nz = np.nonzero(p_theta_k[:, 0])[0]
             data_k = p_theta_k[I_nz, 0]
         else:
-            if Nx == Ny:
-                # beam: square grid
-                p_theta_k = Tx * square_proj_conv_rect(theta_k, t_prime / Tx, a * Tx)
-            else:
-                # bream: rectangular grid
-                theta_prime, t_prime2, scale_factor = radon_affine_scale(theta_k, t_prime, 1/Tx, 1/Ty)
-                a_prime = a * np.hypot(Tx*np.cos(theta_k), Ty*np.sin(theta_k))
-                p_theta_k = scale_factor * square_proj_conv_rect(theta_prime, t_prime2, a_prime)
+            p_theta_k = rect_conv_radon_rect(theta_k, t_prime, Tx, Ty, 1/a)
             I_nz = np.nonzero(p_theta_k)[0]
-            data_k = p_theta_k[I_nz]
+            data_k = p_theta_k[I_nz] * a
         data.extend(data_k)
         indices.extend(I_nz * Na + k)
     return data, indices
 
 
-def radon_matrix(grid, grid_y, a=0, n_cpu=multiprocessing.cpu_count()):
+def radon_matrix(grid, grid_y, a=0, n_cpu=multiprocessing.cpu_count(), chunksize=8):
     """Calculate the matrix form of the Radon transform for an object
     specified on *grid* and projections defined on *grid_y*. The
     parameter *a* specifies the beam width (rect integration applied
@@ -113,7 +106,7 @@ def radon_matrix(grid, grid_y, a=0, n_cpu=multiprocessing.cpu_count()):
     radon_matrix_helper = partial(radon_matrix_ij, grid, grid_y, a=a)
 
     with multiprocessing.Pool(n_cpu) as pool:
-        for data_ij, indices_ij in tqdm(pool.imap(radon_matrix_helper, ij), total=Nx*Ny):
+        for data_ij, indices_ij in tqdm(pool.imap(radon_matrix_helper, ij, chunksize), total=Nx*Ny):
             data.extend(data_ij)
             indices.extend(indices_ij)
             indptr.append(indptr[-1] + len(data_ij))
