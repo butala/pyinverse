@@ -69,6 +69,11 @@ class Phantom:
         """
         self._ellipses = [Ellipse(*row) for row in ellipse_matrix[key]]
 
+    def __call__(self, x, y):
+        """
+        """
+        return sum([e(x, y) for e in self._ellipses])
+
     def raster(self, regular_grid):
         """
         """
