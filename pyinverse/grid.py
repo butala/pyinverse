@@ -39,6 +39,12 @@ class RegularGrid:
         assert x.ndim == 2
         return cls.image(x), x
 
+    @classmethod
+    def linspace(cls, axis1, axis2):
+        """ ??? """
+        return cls(RegularAxis.linspace(*axis1),
+                   RegularAxis.linspace(*axis2))
+
     def __repr__(self):
         return f'<{self.__class__.__name__} <axis_x: {repr(self.axis_x)}> <axis_y: {repr(self.axis_y)}>>'
 
@@ -65,6 +71,12 @@ class RegularGrid:
         """ ??? """
         # This also works for rfft?
         return self.axis_x.N_fast, self.axis_y.N_fast
+
+    def __iter__(self):
+        """Iterate over each grid center coordinate in proper order, i.e., the associated (i,j)th matrix element is located at coordinate (axis_y[i], axis_x[j])."""
+        for i in self.axis_y:
+            for j in self.axis_x:
+                yield (i, j)
 
     def __getitem__(self, index):
         """Return the (ith, jth) sample point."""
