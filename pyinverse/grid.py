@@ -40,10 +40,10 @@ class RegularGrid:
         return cls.image(x), x
 
     @classmethod
-    def linspace(cls, axis1, axis2):
+    def linspace(cls, linspace1, linspace2):
         """ ??? """
-        return cls(RegularAxis.linspace(*axis1),
-                   RegularAxis.linspace(*axis2))
+        return cls(RegularAxis.linspace(*linspace1),
+                   RegularAxis.linspace(*linspace2))
 
     def __repr__(self):
         return f'<{self.__class__.__name__} <axis_x: {repr(self.axis_x)}> <axis_y: {repr(self.axis_y)}>>'
