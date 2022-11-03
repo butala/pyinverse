@@ -1,7 +1,11 @@
+from itertools import product
+
 from .axis import RegularAxis
 
 
 class RegularAxes:
+    """
+    """
     def __init__(self, *axis_list):
         self.axis_list = axis_list
 
@@ -16,6 +20,9 @@ class RegularAxes:
     def __str__(self):
         return f'{self.__class__.__name__}:\n' + '\n'.join([f'axis {i}: {str(axis_i)}' for i, axis_i in enumerate(self.axis_list, 1)])
 
+    def __iter__(self):
+        return product(*self.axis_list)
+
 
 class RegularAxes3(RegularAxes):
     """Regular, i.e., equally spaced, points on a grid.
@@ -29,7 +36,6 @@ class RegularAxes3(RegularAxes):
     def __init__(self, axis_x, axis_y, axis_z):
         """ ??? """
         super().__init__(axis_x, axis_y, axis_z)
-
 
     @property
     def axis_x(self):
