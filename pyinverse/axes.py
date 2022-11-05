@@ -72,9 +72,10 @@ class RegularAxes3(RegularAxes):
     def __str__(self):
         return f'{self.__class__.__name__}:\naxis x: {str(self.axis_x)}\naxis y: {str(self.axis_y)}\naxis z: {str(self.axis_z)}'
 
-    def actor(self, X, vmin=None, vmax=None, cmap='viridis', **kwds):
-        """ ??? """
-        assert X.shape == self.shape
+
+    def _vtk_plot_setup(self, X, vmin=None, vmax=None, cmap='viridis'):
+        """
+        """
         try:
             self._vtk_grid
         except AttributeError:
@@ -87,16 +88,23 @@ class RegularAxes3(RegularAxes):
             self._vtk_grid.SetSpacing(self.axis_x.T,
                                       self.axis_y.T,
                                       self.axis_z.T)
+        assert X.shape == self.shape
         self._values = vtk.util.numpy_support.numpy_to_vtk(X.flat)
         self._vtk_grid.GetCellData().SetScalars(self._values)
         if vmin is None:
             vmin = X.min()
         if vmax is None:
             vmax = X.max()
+        self._lut = cmap2color_transfer_function(vmin=vmin, vmax=vmax, cmap=cmap)
+        return vmin, vmax
+
+
+    def actor(self, X, vmin=None, vmax=None, cmap='viridis'):
+        """ ??? """
+        self._vtk_plot_setup(X, vmin=vmin, vmax=vmax, cmap=cmap)
         # Create a mapper and actor
         self._mapper = vtk.vtkDataSetMapper()
         self._mapper.SetInputData(self._vtk_grid)
-        self._lut = cmap2color_transfer_function(vmin=vmin, vmax=vmax, cmap=cmap)
         self._mapper.SetLookupTable(self._lut)
         self._mapper.SetScalarRange(vmin, vmax)
 
@@ -104,6 +112,30 @@ class RegularAxes3(RegularAxes):
         self._actor.SetMapper(self._mapper)
 
         return self._actor
+
+
+    def volume(self, X, vmin=None, vmax=None, cmap='viridis', amin=0, amax=1):
+        """
+        """
+        vmin, vmax = self._vtk_plot_setup(X, vmin=vmin, vmax=vmax, cmap=cmap)
+
+        self._opacity_tf = vtk.vtkPiecewiseFunction()
+        self._opacity_tf.AddPoint(vmin, amin)
+        self._opacity_tf.AddPoint(vmax, amax)
+
+        volume_property = vtk.vtkVolumeProperty()
+        volume_property.SetColor(self._lut)
+        volume_property.SetScalarOpacity(self._opacity_tf)
+        #volume_property.ShadeOn()
+        volume_property.SetInterpolationTypeToLinear()
+
+        volume_mapper = vtk.vtkOpenGLGPUVolumeRayCastMapper()
+        volume_mapper.SetInputData(self._vtk_grid)
+
+        volume = vtk.vtkVolume()
+        volume.SetMapper(volume_mapper)
+        volume.SetProperty(volume_property)
+        return volume
 
 
 if __name__ == '__main__':
@@ -121,9 +153,14 @@ if __name__ == '__main__':
     X_actor = axes3.actor(X, vmin=0, vmax=Nx*Ny*Nz)
     X_actor.GetProperty().LightingOff()
 
+    X_volume = axes3.volume(X, vmin=0, vmax=Nx*Ny*Nz, amin=0.2)
+
     ren = Renderer()
+    ren.depth_peeling_setup()
     ren.add_actor(X_actor)
+    # ren.add_volume(X_volume)
     ren.axes_on(X_actor.GetBounds())
     ren.colorbar(axes3._lut)
     ren.reset_camera()
+
     ren.start()
