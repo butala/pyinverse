@@ -4,19 +4,33 @@ import numpy as np
 import vtk
 
 
+"""
+Take a look here:
+
+X-ray transform and 3D Radon transform for ellipsoids and tetrahedra
+"""
+
 @dataclass
 class Ellipsoid:
-    rho: float
     a: float
     b: float
     c: float
+
     x0: float
     y0: float
     z0: float
-    phi_rad: float
+
+    alpha_deg: float
+    beta_deg: float
+    gamma_deg: float
+
+    rho: float
+
 
     def __post_init__(self):
-        self.phi_deg = np.degrees(self.phi_rad)
+        self.alpha_rad = np.radians(self.alpha_deg)
+        self.beta_rad = np.radians(self.beta_deg)
+        self.gamme_rad = np.radians(self.gamma_deg)
 
     def __call__(self, x, y, z):
         """
@@ -40,13 +54,16 @@ class Ellipsoid:
         # actor
         actor = vtk.vtkActor()
         actor.SetMapper(mapper)
-        actor.RotateZ(self.phi_deg)
+        # apply standard (Z-X-Z) Euler angle rotation
+        actor.RotateZ(self.alpha_deg)
+        actor.RotateX(self.beta_deg)
+        actor.RotateZ(self.gamma_deg)
         actor.SetPosition(self.x0, self.y0, self.z0)
         return actor
 
 
 if __name__ == '__main__':
-    e = Ellipsoid(1, 0.69, 0.92, 0.9, 0, 0, 0, 0)
+    e = Ellipsoid(0.6900, 0.9200, 0.810, 0, 0, 0, 0, 0, 0, 1.0)
 
     from pyviz3d.viz import Renderer
 
