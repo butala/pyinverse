@@ -6,16 +6,6 @@ from .ellipsoid import Ellipsoid
 
 
 """
-From phantominator source code, where the following is given as a reference:
-
-Koay, Cheng Guan, Joelle E. Sarlls, and Evren Özarslan.
-           "Three-dimensional analytical magnetic resonance imaging
-           phantom in the Fourier domain." Magnetic Resonance in
-           Medicine: An Official Journal of the International Society
-           for Magnetic Resonance in Medicine 58.2 (2007): 430-436.
-"""
-
-"""
 The ELLIPSOID_MATRIX copies from this project: https://github.com/tsadakane/sl3d
 
 Copyright
@@ -25,14 +15,57 @@ Copyright 2021 SADAKANE, Tomoyuki
 https://github.com/tsadakane/sl3d
 """
 
+"""
+1) 'kak_slaney':
+
+The 3D Shepp-Logan head phantom. A is the relative density of water.
+Ref:
+[1] Kak AC, Slaney M, Principles of Computerized Tomographic Imaging, 1988. p.102
+    http://www.slaney.org/pct/pct-errata.html
+
+
+2) 'yu_ye_wang':
+
+A variant of the Kak-Slaney phantom in which the contrast is improved for better
+visual perception.
+Ref:
+[2] Yu H, Ye Y, Wang G, Katsevich-Type Algorithms for Variable Radius Spiral Cone-Beam CT
+    Proceedings of the SPIE, Volume 5535, p. 550-557 (2004)
+
+
+3) toft_schabel:
+
+The geometry of this phantom is based on the 2D phantom shown in [3] and [4].
+(Maybe this is the original Shepp-Logan head phantom?)
+In [5], the intensities of the Shepp-Logan are modified
+to yield higher contrast in the image.
+It is known as 'Modified Shepp-Logan' of the `phantom` function of "Image Processing Toolbox" for MATLAB
+In [6], it is extended to the 3D version. The parameters are as below.
+The formula of geometry transfom for this option is the same as of [6] to reproduce the result,
+while for other options, kak-slaney and yu-ye-wang, it is different.
+
+Ref:
+[3] Kak AC, Slaney M, Principles of Computerized Tomographic Imaging, 1988. p.55
+[4] Jain, Anil K., Fundamentals of Digital Image Processing, Englewood Cliffs, NJ, Prentice Hall, 1989, p. 439.
+[5] Toft P, The Radon Transform: Theory and Implementation, 1996.
+[6] Matthias Schabel (2021). 3D Shepp-Logan phantom
+    (https://www.mathworks.com/matlabcentral/fileexchange/9416-3d-shepp-logan-phantom),
+    MATLAB Central File Exchange. Retrieved April 29, 2021.
+
+
+4) 'kuoy':
+
+From phantominator source code, where the following is given as a reference:
+
+Koay, Cheng Guan, Joelle E. Sarlls, and Evren
+Özarslan. "Three-dimensional analytical magnetic resonance imaging
+phantom in the Fourier domain." Magnetic Resonance in Medicine: An
+Official Journal of the International Society for Magnetic Resonance
+in Medicine 58.2 (2007): 430-436.
+"""
+
 
 ELLIPSOID_MATRIX = {
-    """
-    The 3D Shepp-Logan head phantom. A is the relative density of water.
-    Ref:
-     [1] Kak AC, Slaney M, Principles of Computerized Tomographic Imaging, 1988. p.102
-         http://www.slaney.org/pct/pct-errata.html
-    """
     'kak_slaney':
     #            a        b        c      x0       y0      z0    phi1  phi2   phi3   A
     #        -------------------------------------------------------------------------
@@ -47,13 +80,6 @@ ELLIPSOID_MATRIX = {
               [ 0.0560,  0.040,  0.100,  0.060,  -0.105,   0.625,  90  ,  0,  0,  0.02],
               [ 0.0560,  0.056,  0.100,  0.000,   0.100,   0.625,  0   ,  0,  0, -0.02]]),
 
-    """
-    A variant of the Kak-Slaney phantom in which the contrast is improved for better
-    visual perception.
-    Ref:
-     [2] Yu H, Ye Y, Wang G, Katsevich-Type Algorithms for Variable Radius Spiral Cone-Beam CT
-         Proceedings of the SPIE, Volume 5535, p. 550-557 (2004)
-    """
     'yu_ye_wang':
     #            a      b       c      x0       y0      z0   phi1 phi2 phi3   A
     #        -----------------------------------------------------------------
@@ -68,24 +94,6 @@ ELLIPSOID_MATRIX = {
               [ 0.0560,  0.040,  0.100,   0.06,  -0.105,  0.625, 90 , 0, 0,   0.2 ],
               [ 0.0560,  0.056,  0.100,   0   ,   0.100,  0.625, 0  , 0, 0,  -0.2 ]]),
 
-    """
-    The geometry of this phantom is based on the 2D phantom shown in [3] and [4].
-    (Maybe this is the original Shepp-Logan head phantom?)
-    In [5], the intensities of the Shepp-Logan are modified
-    to yield higher contrast in the image.
-    It is known as 'Modified Shepp-Logan' of the `phantom` function of "Image Processing Toolbox" for MATLAB
-    In [6], it is extended to the 3D version. The parameters are as below.
-    The formula of geometry transfom for this option is the same as of [6] to reproduce the result,
-    while for other options, kak-slaney and yu-ye-wang, it is different.
-
-    Ref:
-     [3] Kak AC, Slaney M, Principles of Computerized Tomographic Imaging, 1988. p.55
-     [4] Jain, Anil K., Fundamentals of Digital Image Processing, Englewood Cliffs, NJ, Prentice Hall, 1989, p. 439.
-     [5] Toft P, The Radon Transform: Theory and Implementation, 1996.
-     [6] Matthias Schabel (2021). 3D Shepp-Logan phantom
-       (https://www.mathworks.com/matlabcentral/fileexchange/9416-3d-shepp-logan-phantom),
-    MATLAB Central File Exchange. Retrieved April 29, 2021.
-    """
     'toft_schabel':
     #              a     b     c     x0      y0      z0    phi1  phi2   phi3   A
     #        -----------------------------------------------------------------
@@ -98,7 +106,21 @@ ELLIPSOID_MATRIX = {
               [ 0.0460, 0.0460, 0.050,  0   , -0.1   ,  0.25,   0,     0,     0,  0.1 ],
               [ 0.0460, 0.0230, 0.050, -0.08, -0.605 ,  0   ,   0,     0,     0,  0.1 ],
               [ 0.0230, 0.0230, 0.020,  0   , -0.606 ,  0   ,   0,     0,     0,  0.1 ],
-              [ 0.0230, 0.0460, 0.020,  0.06, -0.605 ,  0   ,   0,     0,     0,  0.1 ]])
+              [ 0.0230, 0.0460, 0.020,  0.06, -0.605 ,  0   ,   0,     0,     0,  0.1 ]]),
+
+    'koay':
+    #              a     b     c     x0      y0      z0    phi1  phi2 phi3   A
+    #        ------------------------------------------------------------------------
+    np.array([[ 0.69,   0.92,  0.9,    0,     0,     0,     0,   0,    0,  2   ],
+              [ 0.6624, 0.874, 0.88,   0,     0,     0,     0,   0,    0, -0.8 ],
+              [ 0.41,   0.16,  0.21,  -0.22,  0,    -0.25,  108, 0,    0, -0.2 ],
+              [ 0.31,   0.11,  0.22,   0.22,  0,    -0.25,  72,  0,    0, -0.2 ],
+              [ 0.21,   0.25,  0.5,    0,     0.35, -0.25,  0,   0,    0,  0.2 ],
+              [ 0.046,  0.046, 0.046,  0,     0.1,  -0.25,  0,   0,    0,  0.2 ],
+              [ 0.046,  0.023, 0.02,  -0.08, -0.65, -0.25,  0,   0,    0,  0.1 ],
+              [ 0.046,  0.023, 0.02,   0.06, -0.65, -0.25,  90,  0,    0,  0.1 ],
+              [ 0.056,  0.04,  0.1,    0.06, -0.105, 0.625, 90,  0,    0,  0.2 ],
+              [ 0.056,  0.056, 0.1,    0,     0.1,   0.625, 0,   0,    0, -0.2 ]])
 }
 
 
