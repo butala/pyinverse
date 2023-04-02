@@ -175,7 +175,7 @@ def ellipse_proj_ft(ellipse, sinogram_ft_grid, Y_ft=None):
     FY = np.atleast_2d(ft_axis.centers).T * np.atleast_2d(np.sin(theta_rads))
 
     if Y_ft is None:
-        Y_ft = np.zeros((nt, na), dtype=np.complex)
+        Y_ft = np.zeros((nt, na), dtype=complex)
     Y_ft += ellipse_ft(ellipse, FX, FY)
     return Y_ft
 
