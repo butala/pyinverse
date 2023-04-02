@@ -21,11 +21,6 @@ class RegularGrid:
         self.axis_x = axis_x
         self.axis_y = axis_y
 
-        # For reference on all the numpy grid functions: https://stackoverflow.com/questions/12402045/mesh-grid-functions-in-python-meshgrid-mgrid-ogrid-ndgrid
-        self._centers = np.meshgrid(self.axis_x.centers, self.axis_y.centers)
-        if self.axis_x._order == Order.INCREASING and self.axis_y._order == Order.INCREASING:
-            self._borders = np.meshgrid(self.axis_x.borders, self.axis_y.borders)
-
     @classmethod
     def image(cls, x):
         """ ??? """
@@ -54,12 +49,25 @@ class RegularGrid:
     @property
     def centers(self):
         """ ??? """
-        return self._centers
+        try:
+            return self._centers
+        except AttributeError:
+            # For reference on all the numpy grid functions: https://stackoverflow.com/questions/12402045/mesh-grid-functions-in-python-meshgrid-mgrid-ogrid-ndgrid
+            self._centers = np.meshgrid(self.axis_x.centers, self.axis_y.centers)
+            return self.centers
 
     @property
     def borders(self):
         """ ??? """
-        return self._borders
+        try:
+            return self._borders
+        except AttributeError:
+            if self.axis_x._order == Order.INCREASING and self.axis_y._order == Order.INCREASING:
+                self._borders = np.meshgrid(self.axis_x.borders, self.axis_y.borders)
+                return self.borders
+            else:
+                # What to do if an axis is in decreasing order?
+                assert False
 
     @property
     def shape(self):
