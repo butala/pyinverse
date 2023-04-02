@@ -9,34 +9,7 @@ from pyviz3d.viz import Renderer
 from .axis import RegularAxis
 
 
-class RegularAxes:
-    """
-    """
-    def __init__(self, *axis_list):
-        self.axis_list = axis_list
-
-    @classmethod
-    def linspace(cls, *linspace_list):
-        """ ??? """
-        return cls(*[RegularAxis.linspace(*x) for x in linspace_list])
-
-    def __repr__(self):
-        return f'<{self.__class__.__name__} ' + ' '.join([f'<axis_{i}>: {repr(axis_i)}' for i, axis_i in enumerate(self.axis_list, 1)]) + '>'
-
-    def __str__(self):
-        return f'{self.__class__.__name__}:\n' + '\n'.join([f'axis {i}: {str(axis_i)}' for i, axis_i in enumerate(self.axis_list, 1)])
-
-    def __iter__(self):
-        return product(*self.axis_list)
-
-    @property
-    def shape(self):
-        """
-        """
-        return tuple([axis.N for axis in self.axis_list[::-1]])
-
-
-class RegularAxes3(RegularAxes):
+class RegularAxes3:
     """Regular, i.e., equally spaced, points on a grid.
 
     Args:
@@ -47,24 +20,14 @@ class RegularAxes3(RegularAxes):
     """
     def __init__(self, axis_x, axis_y, axis_z):
         """ ??? """
-        super().__init__(axis_x, axis_y, axis_z)
-
-    @property
-    def axis_x(self):
-        return self.axis_list[0]
-
-    @property
-    def axis_y(self):
-        return self.axis_list[1]
-
-    @property
-    def axis_z(self):
-        return self.axis_list[2]
+        self.axis_x = axis_x
+        self.axis_y = axis_y
+        self.axis_z = axis_z
 
     @classmethod
-    def linspace(cls, linspace1, linspace2, linspace3):
+    def linspace(cls, linspace_x, linspace_y, linspace_z):
         """ ??? """
-        return super().linspace(linspace1, linspace2, linspace3)
+        return cls(*(RegularAxis.linspace(*x) for x in [linspace_x, linspace_y, linspace_z]))
 
     def __repr__(self):
         return f'<{self.__class__.__name__} <axis_x: {repr(self.axis_x)}> <axis_y: {repr(self.axis_y)}> <axis_z {repr(self.axis_z)}>>'
@@ -72,6 +35,22 @@ class RegularAxes3(RegularAxes):
     def __str__(self):
         return f'{self.__class__.__name__}:\naxis x: {str(self.axis_x)}\naxis y: {str(self.axis_y)}\naxis z: {str(self.axis_z)}'
 
+    @property
+    def shape(self):
+        """
+        """
+        # row index changes slowest, then column, and depth changes fastest
+        return tuple([axis.N for axis in [self.axis_y, self.axis_x, self.axis_z]])
+
+    @property
+    def centers(self):
+        """
+        """
+        try:
+            return self._centers
+        except AttributeError:
+            self._centers = np.meshgrid(self.axis_x.centers, self.axis_y.centers, self.axis_z.centers)
+            return self.centers
 
     def _vtk_plot_setup(self, X, vmin=None, vmax=None, cmap='viridis'):
         """
@@ -80,7 +59,7 @@ class RegularAxes3(RegularAxes):
             self._vtk_grid
         except AttributeError:
             self._vtk_grid = vtk.vtkImageData()
-            Nz, Ny, Nx = self.shape
+            Ny, Nx, Nz = self.shape
             self._vtk_grid.SetDimensions(Nx+1, Ny+1, Nz+1)
             self._vtk_grid.SetOrigin(self.axis_x.borders[0],
                                      self.axis_y.borders[0],
@@ -89,7 +68,11 @@ class RegularAxes3(RegularAxes):
                                       self.axis_y.T,
                                       self.axis_z.T)
         assert X.shape == self.shape
-        self._values = vtk.util.numpy_support.numpy_to_vtk(X.flat)
+        # "magic" to switch from row major order to VTK's order
+        #
+        # row major (C) order: Z (depth) index changes fastest, then X (column) index is the next, and then Y (row)
+        # VTK order: X index changes fastest, then Y, and then Z is slowest
+        self._values = vtk.util.numpy_support.numpy_to_vtk(X.swapaxes(0, 1).ravel(order='F'))
         self._vtk_grid.GetCellData().SetScalars(self._values)
         if vmin is None:
             vmin = X.min()
@@ -139,21 +122,37 @@ class RegularAxes3(RegularAxes):
 
 
 if __name__ == '__main__':
-    Nx = 3
-    Ny = 4
-    Nz = 2
+    # Example based on: https://eli.thegreenplace.net/2015/memory-layout-of-multi-dimensional-arrays
+
+    # Note that row-major (C) ordering means Z (depth) index changes
+    # fastest, then X (column) index is the next, and then Y (row)
+    # index is the slowest.
+
+    # The example below represents the following:
+    #
+    # depth=0:
+    # [1 2 3 4;
+    #  5 6 7 8]
+    #
+    # depth=1:
+    # [11 12 13 14;
+    #  15 16 17 18]
+    #
+    # depth=2:
+    # [21 22 23 24;
+    #  25 26 27 28]
+
+    X = np.array([[[1, 11, 21], [2, 12, 22], [3, 13, 23], [4, 14, 24]], [[5, 15, 25], [6, 16, 26], [7, 17, 27], [8, 18, 28]]])
+    Ny, Nx, Nz = X.shape
 
     axes3 = RegularAxes3.linspace((-1, 1.5, Nx),
                                   (-2, 3.5, Ny),
                                   (-3, 4, Nz))
 
-    X = np.array(range(Nx*Ny*Nz))
-    X.shape = axes3.shape
-
-    X_actor = axes3.actor(X, vmin=0, vmax=Nx*Ny*Nz)
+    X_actor = axes3.actor(X, vmin=0, vmax=28)
     X_actor.GetProperty().LightingOff()
 
-    X_volume = axes3.volume(X, vmin=0, vmax=Nx*Ny*Nz, amin=0.2)
+    # X_volume = axes3.volume(X, vmin=0, vmax=Nx*Ny*Nz, amin=0.2)
 
     ren = Renderer()
     ren.depth_peeling_setup()
