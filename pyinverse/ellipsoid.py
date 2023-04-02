@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 
 import numpy as np
+import scipy
 import vtk
 
 
@@ -32,10 +33,25 @@ class Ellipsoid:
         self.beta_rad = np.radians(self.beta_deg)
         self.gamme_rad = np.radians(self.gamma_deg)
 
+    @property
+    def R_matrix(self):
+        try:
+            return self._R_matrix
+        except AttributeError:
+            self._R_matrix = scipy.spatial.transform.Rotation.from_euler('ZXZ',
+                                                                         [self.alpha_deg, self.beta_deg, self.gamma_deg],
+                                                                         degrees=True).as_matrix()
+            return self.R_matrix
+
+
     def __call__(self, x, y, z):
         """
         """
-        assert False
+        p_xyz = self.R_matrix.T @ (np.array([x - self.x0, y - self.y0, z - self.z0]))
+        if (p_xyz[0] / self.a)**2 + (p_xyz[1] / self.b)**2 + (p_xyz[2] / self.c)**2 <= 1:
+            return self.rho
+        else:
+            return 0
 
     def actor(self):
         """
