@@ -132,6 +132,8 @@ class Phantom3:
         """
         self._ellipsoids = [Ellipsoid(*row) for row in ellipsoid_matrix[key]]
 
+    def __call__(self, x, y, z):
+        return sum([e(x, y, z) for e in self._ellipsoids])
 
     def actor(self, opacity=0.2, cmap='viridis'):
         """
