@@ -11,6 +11,48 @@ Take a look here:
 X-ray transform and 3D Radon transform for ellipsoids and tetrahedra
 """
 
+
+def ellipsoid_proj(ellipsoid, theta, phi, grid, deg=False, Y=None):
+    """ """
+    if deg:
+        theta_rad = np.radians(theta)
+        phi_rad = np.radians(phi)
+    else:
+        theta_rad = theta
+        phi_rad = phi
+    if Y is None:
+        Y = np.zeros((grid.shape))
+    cos_theta = np.cos(theta_rad)
+    sin_theta = np.sin(theta_rad)
+    cos_phi = np.cos(phi_rad)
+    sin_phi = np.sin(phi_rad)
+    # Problem 4.15 from Fessler's notes
+    e_vec = np.array([-sin_phi * cos_theta,
+                       cos_phi * cos_theta,
+                       sin_theta])
+
+    U, V = grid.centers
+
+    p = np.array((U * cos_phi + V * sin_phi * sin_theta,
+                  U * sin_phi - V * cos_phi * sin_theta,
+                  V * cos_theta))
+
+    M = np.diag([1/ellipsoid.a, 1/ellipsoid.b, 1/ellipsoid.c])
+    M_e = M @ e_vec
+
+    A = np.dot(M_e, M_e)
+
+    M_p = np.tensordot(M, p, axes=(1, 0))
+
+    B = np.tensordot(M_e, M_p, axes=1)
+    C = np.einsum('ijk,ijk->jk', M_p, M_p) - 1
+
+    I = B**2 >= A * C
+    Y[I] += 2/A * np.sqrt(B[I]**2 - A*C[I])
+
+    return Y
+
+
 @dataclass
 class Ellipsoid:
     a: float
@@ -53,6 +95,7 @@ class Ellipsoid:
         else:
             return 0
 
+
     def actor(self):
         """
         """
@@ -76,6 +119,12 @@ class Ellipsoid:
         actor.RotateZ(self.gamma_deg)
         actor.SetPosition(self.x0, self.y0, self.z0)
         return actor
+
+
+    def proj(self, theta, phi, grid, deg=False, Y=None):
+        """
+        """
+        return ellipsoid_proj(self, theta, phi, grid, deg=deg, Y=Y)
 
 
 if __name__ == '__main__':
