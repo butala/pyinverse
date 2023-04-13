@@ -33,9 +33,13 @@ def ellipsoid_proj(ellipsoid, theta, phi, grid, deg=False, Y=None):
 
     U, V = grid.centers
 
-    p = np.array((U * cos_phi + V * sin_phi * sin_theta,
-                  U * sin_phi - V * cos_phi * sin_theta,
-                  V * cos_theta))
+    p0 = np.array((U * cos_phi + V * sin_phi * sin_theta - ellipsoid.x0,
+                   U * sin_phi - V * cos_phi * sin_theta - ellipsoid.y0,
+                   V * cos_theta - ellipsoid.z0))
+
+    R = ellipsoid.R_matrix
+
+    p = np.tensordot(R.T, p0, axes=(1, 0))
 
     M = np.diag([1/ellipsoid.a, 1/ellipsoid.b, 1/ellipsoid.c])
     M_e = M @ e_vec

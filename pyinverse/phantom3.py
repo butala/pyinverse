@@ -147,6 +147,15 @@ class Phantom3:
             assembly.AddPart(actor)
         return assembly
 
+    def proj(self, theta, phi, grid, deg=False, Y=None):
+        """
+        """
+        if Y is None:
+            Y = np.zeros((grid.shape))
+        for e in self._ellipsoids:
+            e.proj(theta, phi, grid, deg=deg, Y=Y)
+        return Y
+
 
 if __name__ == '__main__':
     p = Phantom3()
