@@ -144,7 +144,7 @@ class RegularGrid:
         """
         if self.axis_x._order != Order.INCREASING or self.axis_y._order != Order.INCREASING:
             grid_increasing, X_increasing = self.increasing(X)
-            return grid_increasing.imshow(ax, X_increasing, interpolation=interpolation, **kwds)
+            return grid_increasing.plot(ax, X_increasing, interpolation=interpolation, **kwds)
 
         assert self.shape == X.shape
         assert 'origin' not in kwds
