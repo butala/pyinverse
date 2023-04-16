@@ -31,16 +31,16 @@ def ellipsoid_proj(ellipsoid, theta, phi, grid, deg=False, Y=None):
     integration) and normal to the projection plane. The vectors e1
     and e2 specify the projection plan coordinates.
 
-    |------+-------+-----+-----+-----|
-    |  phi | theta |   e |  e1 |  e2 |
-    |------+-------+-----+-----+-----|
-    |    0 |     0 |   y |   x |   z |
-    | pi/2 |     0 |  -x |   y |   z |
-    |   pi |     0 |  -y |  -x |   z |
-    |    0 |  pi/2 |   z |   x |  -y |
-    |    0 | -pi/2 |  -z |   x |   y |
-    | pi/2 |  pi/2 |   z |   y |   x |
-    |------+-------+-----+-----+-----|
+    |-------+------+-----+-----+-----|
+    | theta |  phi |   e |  e1 |  e2 |
+    |-------+------+-----+-----+-----|
+    |     0 |    0 |   y |   x |   z |
+    |     0 | pi/2 |  -x |   y |   z |
+    |     0 |   pi |  -y |  -x |   z |
+    |  pi/2 |    0 |   z |   x |  -y |
+    |  pi/2 |    0 |  -z |   x |   y |
+    |  pi/2 | pi/2 |   z |   y |   x |
+    |-------+------+-----+-----+-----|
     """
     if deg:
         theta_rad = np.radians(theta)
