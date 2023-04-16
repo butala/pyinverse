@@ -165,7 +165,8 @@ if __name__ == '__main__':
     from pyviz3d.viz import Renderer
     ren = Renderer()
     ren.add_actor(actor)
-    ren.axes_on(actor.GetBounds())
+    #ren.axes_on(actor.GetBounds())
+    ren.axes_on((-1, 1, -1, 1, -1, 1))
     ren.reset_camera()
 
     ren.start()
