@@ -13,7 +13,35 @@ X-ray transform and 3D Radon transform for ellipsoids and tetrahedra
 
 
 def ellipsoid_proj(ellipsoid, theta, phi, grid, deg=False, Y=None):
-    """ """
+    """
+    Return the X-ray transform of *ellipsoid* at the azimuthal
+    angle *phi* (ranging from -pi to pi, though negative angles are
+    redundant due to symmetry) and polar angle *theta* (ranging from
+    -pi/2 to pi/2). If *deg* is `True` then these angles are given in
+    degrees and in radians otherwise. The result is stored in *Y* if
+    it is provided and in the new, appropriately sized array
+    otherwise. The U and V coordinates in the projection plan are
+    specified by the x axis and y axis of *grid*, respectively.
+
+    The angular conventions follow Fessler's notes
+    (http://web.eecs.umich.edu/~fessler/book/c-tomo-prop.pdf).
+
+    In the table below, the unit vector e is parallel to the line
+    integrals (so the sign does not matter from the viewpoint of the
+    integration) and normal to the projection plane. The vectors e1
+    and e2 specify the projection plan coordinates.
+
+    |------+-------+-----+-----+-----|
+    |  phi | theta |   e |  e1 |  e2 |
+    |------+-------+-----+-----+-----|
+    |    0 |     0 |   y |   x |   z |
+    | pi/2 |     0 |  -x |   y |   z |
+    |   pi |     0 |  -y |  -x |   z |
+    |    0 |  pi/2 |   z |   x |  -y |
+    |    0 | -pi/2 |  -z |   x |   y |
+    | pi/2 |  pi/2 |   z |   y |   x |
+    |------+-------+-----+-----+-----|
+    """
     if deg:
         theta_rad = np.radians(theta)
         phi_rad = np.radians(phi)
@@ -31,28 +59,43 @@ def ellipsoid_proj(ellipsoid, theta, phi, grid, deg=False, Y=None):
                        cos_phi * cos_theta,
                        sin_theta])
 
+    e1_vec = np.array([cos_phi,
+                       sin_phi,
+                       0])
+
+    e2_vec = np.array([ sin_phi * sin_theta,
+                       -cos_phi * sin_theta,
+                       cos_theta])
+
+    # rotation property
+    e_vec = ellipsoid.R_matrix.T @ e_vec
+    e1_vec = ellipsoid.R_matrix.T @ e1_vec
+    e2_vec = ellipsoid.R_matrix.T @ e2_vec
+
     U, V = grid.centers
 
-    p0 = np.array((U * cos_phi + V * sin_phi * sin_theta - ellipsoid.x0,
-                   U * sin_phi - V * cos_phi * sin_theta - ellipsoid.y0,
-                   V * cos_theta - ellipsoid.z0))
+    # shift property
+    p0 = np.array([ellipsoid.x0, ellipsoid.y0, ellipsoid.z0])
+    U0 = np.dot(e1_vec, p0)
+    V0 = np.dot(e2_vec, p0)
 
-    R = ellipsoid.R_matrix
+    U = U.flat - U0
+    V = V.flat - V0
 
-    p = np.tensordot(R.T, p0, axes=(1, 0))
+    p = e1_vec[:, np.newaxis] @ U[np.newaxis, :] + e2_vec[:, np.newaxis] @ V[np.newaxis, :]
 
     M = np.diag([1/ellipsoid.a, 1/ellipsoid.b, 1/ellipsoid.c])
     M_e = M @ e_vec
 
     A = np.dot(M_e, M_e)
 
-    M_p = np.tensordot(M, p, axes=(1, 0))
+    M_p = M @ p
 
-    B = np.tensordot(M_e, M_p, axes=1)
-    C = np.einsum('ijk,ijk->jk', M_p, M_p) - 1
+    B = np.einsum('i,ij->j', M_e, M_p)
+    C = np.einsum('ij,ij->j', M_p, M_p) - 1
 
     I = B**2 >= A * C
-    Y[I] += 2/A * np.sqrt(B[I]**2 - A*C[I])
+    Y.flat[I] += 2/A * np.sqrt(B[I]**2 - A*C[I]) * ellipsoid.rho
 
     return Y
 
@@ -81,6 +124,10 @@ class Ellipsoid:
 
     @property
     def R_matrix(self):
+        """
+        Return the rotation matrix corresponding to the Z-X-Z Euler
+        angle parameters alpha_deg, beta_deg, and gamma_deg.
+        """
         try:
             return self._R_matrix
         except AttributeError:
@@ -90,14 +137,27 @@ class Ellipsoid:
             return self.R_matrix
 
 
-    def __call__(self, x, y, z):
+    def __call__(self, x, y, z, Y=None):
         """
+        Evaluate the ellipsoid indicator function for those points
+        given in (possibly same vector length) coordinate arguments
+        *x*, *y*, and *z*. If the coordinate is interior to the
+        ellipsoid then return rho, otherwise return 0. If *Y* is
+        given, return the result in *Y* and return a new appropriately
+        sized array if *Y* is `None`.
         """
-        p_xyz = self.R_matrix.T @ (np.array([x - self.x0, y - self.y0, z - self.z0]))
-        if (p_xyz[0] / self.a)**2 + (p_xyz[1] / self.b)**2 + (p_xyz[2] / self.c)**2 <= 1:
-            return self.rho
+        assert x.ndim == y.ndim == z.ndim == 1
+        assert x.shape == y.shape == z.shape
+        M = np.diag((1/self.a, 1/self.b, 1/self.c))
+        if Y is None:
+            Y = np.zeros_like(x)
         else:
-            return 0
+            assert Y.shape == x.shape
+        p = np.stack((x, y, z)) - np.array([self.x0, self.y0, self.z0])[:, np.newaxis]
+        M_p = (M @ self.R_matrix.T) @ p
+        I = np.einsum('ij,ij->j', M_p, M_p) <= 1
+        Y[I] = self.rho
+        return Y
 
 
     def actor(self):
@@ -127,12 +187,18 @@ class Ellipsoid:
 
     def proj(self, theta, phi, grid, deg=False, Y=None):
         """
+        Return the projection of the ellipsoid. See the detailed
+        documentation in :func:`ellipsoid_proj`.
         """
         return ellipsoid_proj(self, theta, phi, grid, deg=deg, Y=Y)
 
 
 if __name__ == '__main__':
-    e = Ellipsoid(0.6900, 0.9200, 0.810, 0, 0, 0, 0, 0, 0, 1.0)
+    # e = Ellipsoid(0.6900, 0.9200, 0.810, 0, 0, 0, 0, 0, 0, 1.0)
+    # e = Ellipsoid(0.6900, 0.9200, 0.810, 0, -0.25, 0, 0, 0, 0, 1.0)
+    # e = Ellipsoid(0.6900, 0.9200, 0.810, 0, 0, -0.25, 0, 0, 0, 1.0)
+    # e = Ellipsoid(10*0.046, 10*0.023, 10*0.02, 5*-0.08, -0.65, -0.25, 0, 0, 0, 0.1)
+    e = Ellipsoid(0.31, 0.11, 0.22, 0.22, 0, -0.25, 72, 0, 0, -0.2)
 
     from pyviz3d.viz import Renderer
 
@@ -141,7 +207,7 @@ if __name__ == '__main__':
 
     ren = Renderer()
     ren.add_actor(actor)
-    ren.axes_on(actor.GetBounds())
+    ren.axes_on((-1, 1, -1, 1, -1, 1))
     ren.reset_camera()
 
     ren.start()
