@@ -55,29 +55,29 @@ def ellipsoid_proj(ellipsoid, theta, phi, grid, deg=False, Y=None):
     cos_phi = np.cos(phi_rad)
     sin_phi = np.sin(phi_rad)
     # Problem 4.15 from Fessler's notes
-    e_vec = np.array([-sin_phi * cos_theta,
-                       cos_phi * cos_theta,
-                       sin_theta])
+    e_vec0 = np.array([-sin_phi * cos_theta,
+                        cos_phi * cos_theta,
+                        sin_theta])
 
-    e1_vec = np.array([cos_phi,
-                       sin_phi,
-                       0])
+    e1_vec0 = np.array([cos_phi,
+                        sin_phi,
+                        0])
 
-    e2_vec = np.array([ sin_phi * sin_theta,
-                       -cos_phi * sin_theta,
-                       cos_theta])
+    e2_vec0 = np.array([ sin_phi * sin_theta,
+                        -cos_phi * sin_theta,
+                         cos_theta])
 
     # rotation property
-    e_vec = ellipsoid.R_matrix.T @ e_vec
-    e1_vec = ellipsoid.R_matrix.T @ e1_vec
-    e2_vec = ellipsoid.R_matrix.T @ e2_vec
+    e_vec = ellipsoid.R_matrix.T @ e_vec0
+    e1_vec = ellipsoid.R_matrix.T @ e1_vec0
+    e2_vec = ellipsoid.R_matrix.T @ e2_vec0
 
     U, V = grid.centers
 
     # shift property
     p0 = np.array([ellipsoid.x0, ellipsoid.y0, ellipsoid.z0])
-    U0 = np.dot(e1_vec, p0)
-    V0 = np.dot(e2_vec, p0)
+    U0 = np.dot(e1_vec0, p0)
+    V0 = np.dot(e2_vec0, p0)
 
     U = U.flat - U0
     V = V.flat - V0
