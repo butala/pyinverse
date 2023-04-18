@@ -18,6 +18,11 @@ class RegularAxes3:
         axis_z (RegularAxis): height axis
 
     """
+    # See the example in the __main__ function for an explanation of
+    # the storage order in numpy for 3-D arrays. The depth dimension
+    # (axis=2, the z axis) index changes the fastest, then the column
+    # dimension (axis=1, the x axis), and then the row dimension
+    # (axis=0, the y axis).
     def __init__(self, axis_x, axis_y, axis_z):
         """ ??? """
         self.axis_x = axis_x
