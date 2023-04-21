@@ -100,6 +100,31 @@ def ellipsoid_proj(ellipsoid, theta, phi, grid, deg=False, Y=None):
     return Y
 
 
+def ellipsoid_ft(ellipsoid, kx, ky, kz, optimize=False):
+    """*kx*, *k_y*, and *k_z* are in Hz"""
+    # Cheng Guan Koay, Joelle E. Sarlls, and Evren Ozarslan,
+    # Three-Dimensional Analytical Magnetic Resonance Imaging Phantom
+    # in the Fourier Domain, Magnetic Resonance in Medicine 58:430–436
+    # (2007)
+    assert kx.shape == ky.shape == kz.shape
+    I0 = np.isclose(kx, 0) & np.isclose(ky, 0) & np.isclose(kz, 0)
+    R = ellipsoid.R_matrix
+    kxyz = np.array([kx, ky, kz])
+    kxyz_tilde = np.einsum('ij,jklm->iklm', ellipsoid.R_matrix.T, kxyz, optimize=optimize)
+    kx_tilde = kxyz_tilde[0, :, :, :]
+    ky_tilde = kxyz_tilde[1, :, :, :]
+    kz_tilde = kxyz_tilde[2, :, :, :]
+    K = np.sqrt((ellipsoid.a * kx_tilde)**2 + (ellipsoid.b * ky_tilde)**2 + (ellipsoid.c * kz_tilde)**2)
+    delta = np.array([ellipsoid.x0, ellipsoid.y0, ellipsoid.z0])
+    P = np.exp(-1j * 2 * np.pi * np.einsum('i,ijkl->jkl', np.array(delta), kxyz, optimize=optimize))
+    out = np.empty_like(kx, dtype=complex)
+    out[I0] = ellipsoid.rho * (4/3) * np.pi * ellipsoid.a * ellipsoid.b * ellipsoid.c
+    J = ~I0
+    out[J] = ellipsoid.rho * ellipsoid.a * ellipsoid.b * ellipsoid.c * (np.sin(2 * np.pi * K[J]) - 2 * np.pi * K[J] * np.cos(2 * np.pi * K[J])) / (2 * np.pi**2 * K[J]**3)
+    out *= P
+    return out
+
+
 @dataclass
 class Ellipsoid:
     a: float
@@ -191,6 +216,12 @@ class Ellipsoid:
         documentation in :func:`ellipsoid_proj`.
         """
         return ellipsoid_proj(self, theta, phi, grid, deg=deg, Y=Y)
+
+
+    def fourier_transform(self, fx, fy, fz):
+        """
+        """
+        return ellipsoid_ft(self, fx, fy, fz)
 
 
 if __name__ == '__main__':
