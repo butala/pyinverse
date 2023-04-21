@@ -2,11 +2,12 @@ from itertools import product
 
 import vtk
 import numpy as np
+import scipy
 
 from pyviz3d.util import cmap2color_transfer_function
 from pyviz3d.viz import Renderer
 
-from .axis import RegularAxis
+from .axis import RegularAxis, Order
 
 
 class RegularAxes3:
@@ -56,6 +57,56 @@ class RegularAxes3:
         except AttributeError:
             self._centers = np.meshgrid(self.axis_x.centers, self.axis_y.centers, self.axis_z.centers)
             return self.centers
+
+    def scale(self, Sx, Sy, Sz):
+        """ ??? """
+        return RegularAxes3(self.axis_x.scale(Sx), self.axis_y.scale(Sy), self.axis_z.scale(Sz))
+
+    def Hz(self):
+        """
+        """
+        return self.scale(1 / (2*np.pi), 1 / (2*np.pi), 1 / (2*np.pi))
+
+    def increasing(self, x=None):
+        """
+        """
+        if x is not None:
+            assert x.shape == self.shape
+
+        axes3 = RegularAxes3(self.axis_x.increasing(), self.axis_y.increasing(), self.axis_z.increasing())
+
+        if x is not None:
+            x = scipy.fft.fftshift(x)
+            return axes3, x
+        else:
+            return axes3
+
+    def spectrum_grid(self, s=None):
+        """
+        """
+        if s is None:
+            s = self.shape
+        f_axis_x = self.axis_x.spectrum_axis(s[1])
+        f_axis_y = self.axis_y.spectrum_axis(s[0])
+        f_axis_z = self.axis_z.spectrum_axis(s[2])
+        return FreqRegularAxes3(f_axis_x, f_axis_y, f_axis_z, self)
+
+    def spectrum(self, x, s=None):
+        """
+        """
+        assert x.shape == self.shape
+        assert self.axis_x._order == Order.INCREASING and self.axis_y._order == Order.INCREASING and self.axis_z._order == Order.INCREASING
+        if s is None:
+            s = self.shape
+        elif s < self.shape:
+            raise NotImplementedError()
+        X_spectrum = scipy.fft.fftn(x, s=s)
+        axes3_freq = self.spectrum_grid(s=s)
+        P = np.exp(-1j*(axes3_freq.centers[0]*self.axis_x.x0 +
+                        axes3_freq.centers[1]*self.axis_y.x0 +
+                        axes3_freq.centers[2]*self.axis_z.x0))
+        X_spectrum *= P * self.axis_x.T * self.axis_y.T * self.axis_z.T
+        return axes3_freq, X_spectrum
 
     def _vtk_plot_setup(self, X, vmin=None, vmax=None, cmap='viridis'):
         """
@@ -124,6 +175,12 @@ class RegularAxes3:
         volume.SetMapper(volume_mapper)
         volume.SetProperty(volume_property)
         return volume
+
+
+class FreqRegularAxes3(RegularAxes3):
+    def __init__(self, axis_x, axis_y, axis_z, axes3_s):
+        super().__init__(axis_x, axis_y, axis_z)
+        self.axes3_s = axes3_s
 
 
 if __name__ == '__main__':
