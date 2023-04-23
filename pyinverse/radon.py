@@ -20,8 +20,9 @@ def radon_translate(theta_rad, r, x0, y0):
 
 
 def angle_pi(a, b):
-    """The angle pi function defined in Fessler's book equation (3.2.16).
-
+    """
+    The angle pi function defined in Fessler's book equation
+    (3.2.16).
     """
     if a * b > 0:
         return np.arctan(b / a)
@@ -53,8 +54,10 @@ def radon_affine_scale(theta_rad, r, alpha, beta):
 
 
 def regular_grid2polytope(grid, ij):
-    """Return the polytope, i.e., A and b in the equation Ax <= b,
-    that corresponds to (ij)th grid element."""
+    """
+    Return the polytope, i.e., A and b in the equation Ax <= b,
+    that corresponds to (ij)th grid element.
+    """
     A = [[-1,  0],
          [ 1,  0],
          [ 0, -1],
@@ -68,7 +71,8 @@ def regular_grid2polytope(grid, ij):
 
 
 def theta_grid2half_planes(grid_y, kl, rad=False):
-    """Return the polytope, i.e., A and b in the equation Ax <= b,
+    """
+    Return the polytope, i.e., A and b in the equation Ax <= b,
     that corresponds to the strip of integration for the (*kl*)th
     element in the Radon transform where k is the theta index and l is
     the projection axis coordinate index which are specified by
@@ -168,12 +172,12 @@ def radon_matrix_ij_analytic(grid, grid_y, ij, a=0):
 
 def radon_matrix(grid, grid_y, a=0, n_cpu=multiprocessing.cpu_count(), chunksize=8,
                  _radon_matrix_ij=radon_matrix_ij_analytic):
-    """Calculate the matrix form of the Radon transform for an object
+    """
+    Calculate the matrix form of the Radon transform for an object
     specified on *grid* and projections defined on *grid_y*. The
     parameter *a* specifies the beam width (rect integration applied
     to projections --- use delta function line integration when
     *a*=0).
-
     """
     Ny, Nx = grid.shape
     Np, Na = grid_y.shape
