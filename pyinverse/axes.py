@@ -24,6 +24,16 @@ class RegularAxes3:
     # (axis=2, the z axis) index changes the fastest, then the column
     # dimension (axis=1, the x axis), and then the row dimension
     # (axis=0, the y axis).
+
+    # https://github.com/paulo-herrera/PyEVTK
+
+    # https://vtk.org/pipermail/vtkusers/2016-September/096626.html
+    # VTK image data arrays are stored such that the X dimension
+    # increases fastest, followed by Y, followed by Z.
+
+    # Slow, middle, fast
+    # row, column, depth
+    # z,   y, ,    x
     def __init__(self, axis_x, axis_y, axis_z):
         """ ??? """
         self.axis_x = axis_x
@@ -46,7 +56,7 @@ class RegularAxes3:
         """
         """
         # row index changes slowest, then column, and depth changes fastest
-        return tuple([axis.N for axis in [self.axis_y, self.axis_x, self.axis_z]])
+        return tuple([axis.N for axis in [self.axis_z, self.axis_y, self.axis_x]])
 
     @property
     def centers(self):
@@ -55,7 +65,10 @@ class RegularAxes3:
         try:
             return self._centers
         except AttributeError:
-            self._centers = np.meshgrid(self.axis_x.centers, self.axis_y.centers, self.axis_z.centers)
+            self._centers = np.meshgrid(self.axis_z.centers,
+                                        self.axis_y.centers,
+                                        self.axis_x.centers,
+                                        indexing='ij')
             return self.centers
 
     def scale(self, Sx, Sy, Sz):
@@ -86,9 +99,9 @@ class RegularAxes3:
         """
         if s is None:
             s = self.shape
-        f_axis_x = self.axis_x.spectrum_axis(s[1])
-        f_axis_y = self.axis_y.spectrum_axis(s[0])
-        f_axis_z = self.axis_z.spectrum_axis(s[2])
+        f_axis_x = self.axis_x.spectrum_axis(s[2])
+        f_axis_y = self.axis_y.spectrum_axis(s[1])
+        f_axis_z = self.axis_z.spectrum_axis(s[0])
         return FreqRegularAxes3(f_axis_x, f_axis_y, f_axis_z, self)
 
     def spectrum(self, x, s=None):
@@ -102,9 +115,9 @@ class RegularAxes3:
             raise NotImplementedError()
         X_spectrum = scipy.fft.fftn(x, s=s)
         axes3_freq = self.spectrum_grid(s=s)
-        P = np.exp(-1j*(axes3_freq.centers[0]*self.axis_x.x0 +
+        P = np.exp(-1j*(axes3_freq.centers[2]*self.axis_x.x0 +
                         axes3_freq.centers[1]*self.axis_y.x0 +
-                        axes3_freq.centers[2]*self.axis_z.x0))
+                        axes3_freq.centers[0]*self.axis_z.x0))
         X_spectrum *= P * self.axis_x.T * self.axis_y.T * self.axis_z.T
         return axes3_freq, X_spectrum
 
@@ -115,7 +128,7 @@ class RegularAxes3:
             self._vtk_grid
         except AttributeError:
             self._vtk_grid = vtk.vtkImageData()
-            Ny, Nx, Nz = self.shape
+            Nz, Ny, Nx = self.shape
             self._vtk_grid.SetDimensions(Nx+1, Ny+1, Nz+1)
             self._vtk_grid.SetOrigin(self.axis_x.borders[0],
                                      self.axis_y.borders[0],
@@ -124,11 +137,7 @@ class RegularAxes3:
                                       self.axis_y.T,
                                       self.axis_z.T)
         assert X.shape == self.shape
-        # "magic" to switch from row major order to VTK's order
-        #
-        # row major (C) order: Z (depth) index changes fastest, then X (column) index is the next, and then Y (row)
-        # VTK order: X index changes fastest, then Y, and then Z is slowest
-        self._values = vtk.util.numpy_support.numpy_to_vtk(X.swapaxes(0, 1).ravel(order='F'))
+        self._values = vtk.util.numpy_support.numpy_to_vtk(X.flat)
         self._vtk_grid.GetCellData().SetScalars(self._values)
         if vmin is None:
             vmin = X.min()
@@ -205,7 +214,7 @@ if __name__ == '__main__':
     #  25 26 27 28]
 
     X = np.array([[[1, 11, 21], [2, 12, 22], [3, 13, 23], [4, 14, 24]], [[5, 15, 25], [6, 16, 26], [7, 17, 27], [8, 18, 28]]])
-    Ny, Nx, Nz = X.shape
+    Nz, Ny, Nx = X.shape
 
     axes3 = RegularAxes3.linspace((-1, 1.5, Nx),
                                   (-2, 3.5, Ny),
