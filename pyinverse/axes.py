@@ -121,13 +121,16 @@ class RegularAxes3:
         X_spectrum *= P * self.axis_x.T * self.axis_y.T * self.axis_z.T
         return axes3_freq, X_spectrum
 
-    def _vtk_plot_setup(self, X, vmin=None, vmax=None, cmap='viridis'):
+    def _vtk_plot_setup(self, X, vmin=None, vmax=None, cmap='viridis', blank_cells=None):
         """
         """
         try:
             self._vtk_grid
         except AttributeError:
-            self._vtk_grid = vtk.vtkImageData()
+            if blank_cells is None:
+                self._vtk_grid = vtk.vtkImageData()
+            else:
+                self._vtk_grid = vtk.vtkUniformGrid()
             Nz, Ny, Nx = self.shape
             self._vtk_grid.SetDimensions(Nx+1, Ny+1, Nz+1)
             self._vtk_grid.SetOrigin(self.axis_x.borders[0],
@@ -139,6 +142,9 @@ class RegularAxes3:
         assert X.shape == self.shape
         self._values = vtk.util.numpy_support.numpy_to_vtk(X.flat)
         self._vtk_grid.GetCellData().SetScalars(self._values)
+        if blank_cells is not None:
+            for (i, j, k) in blank_cells:
+                self._vtk_grid.BlankCell(i, j, k)
         if vmin is None:
             vmin = X.min()
         if vmax is None:
@@ -147,9 +153,9 @@ class RegularAxes3:
         return vmin, vmax
 
 
-    def actor(self, X, vmin=None, vmax=None, cmap='viridis'):
+    def actor(self, X, vmin=None, vmax=None, cmap='viridis', blank_cells=None):
         """ ??? """
-        self._vtk_plot_setup(X, vmin=vmin, vmax=vmax, cmap=cmap)
+        self._vtk_plot_setup(X, vmin=vmin, vmax=vmax, cmap=cmap, blank_cells=blank_cells)
         # Create a mapper and actor
         self._mapper = vtk.vtkDataSetMapper()
         self._mapper.SetInputData(self._vtk_grid)
@@ -220,7 +226,9 @@ if __name__ == '__main__':
                                   (-2, 3.5, Ny),
                                   (-3, 4, Nz))
 
-    X_actor = axes3.actor(X, vmin=0, vmax=28)
+    # blank_cells = None
+    blank_cells = [(0, 0, 0)]
+    X_actor = axes3.actor(X, vmin=0, vmax=28, blank_cells=blank_cells)
     X_actor.GetProperty().LightingOff()
 
     # X_volume = axes3.volume(X, vmin=0, vmax=Nx*Ny*Nz, amin=0.2)
