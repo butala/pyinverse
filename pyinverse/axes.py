@@ -155,7 +155,7 @@ class RegularAxes3:
 
     def actor(self, X, vmin=None, vmax=None, cmap='viridis', blank_cells=None):
         """ ??? """
-        self._vtk_plot_setup(X, vmin=vmin, vmax=vmax, cmap=cmap, blank_cells=blank_cells)
+        vmin, vmax = self._vtk_plot_setup(X, vmin=vmin, vmax=vmax, cmap=cmap, blank_cells=blank_cells)
         # Create a mapper and actor
         self._mapper = vtk.vtkDataSetMapper()
         self._mapper.SetInputData(self._vtk_grid)
