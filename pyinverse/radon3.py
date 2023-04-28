@@ -53,11 +53,11 @@ def beam2actor(grid, ij, e_min_max, theta, phi, color='Peru', alpha=0.2, deg=Fal
     element of the u-v plane interval defined in *grid* where `i`
     corresponds to the vertical (v) dimension and `j` corresponds to
     the horizontal (u) dimension. The length of the beam (depth
-    dimension) is specified by *e_min_max*. The bream is oriented by
-    the angles *theta* and *phi* are the polar angle [-pi/2, pi/2] and
-    azimuth [-pi, pi], respectively, specified in radians unless
-    *degrees* is `True`. Use the web color *color* and opacity
-    *alpha*.
+    dimension) is specified by the tuple *e_min_max*. The bream is
+    oriented by the angles *theta* and *phi* are the polar angle
+    [-pi/2, pi/2] and azimuth [-pi, pi], respectively, specified in
+    radians unless *degrees* is `True`. Use the web color *color* and
+    opacity *alpha*.
     """
     i, j = ij
     emin, emax = e_min_max
