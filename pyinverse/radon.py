@@ -81,7 +81,7 @@ def theta_grid2half_planes(grid_y, kl, rad=False):
     """
     # This code could be greatly simplified. See the use of
     # scipy.spatial.transform.Rotation in
-    # pyinvserse.radon3.theta_grid2half_planes
+    # pyinverse.radon3.theta_grid2half_planes
     k, l = kl
     theta_k = grid_y.axis_x.centers[k]
     if not rad:
