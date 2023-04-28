@@ -71,6 +71,27 @@ class RegularAxes3:
                                         indexing='ij')
             return self.centers
 
+    @classmethod
+    def axes_unravel_indices(cls, indices, shape):
+        """
+        Convert the list of voxel flat *indices* to the tuple of
+        list of indices in (z, y, x) order corresponding to a 3D axes
+        with *shape* elements.
+        """
+        coords = np.unravel_index(indices, shape)
+        return (coords[2], coords[1], coords[0])
+
+    @classmethod
+    def axes_ravel_multi_index(cls, multi_index, dims):
+        """
+        Convert the tuple of list of indices in (z, y, x) order
+        *multi_index* to an array of flattened indices corresponding
+        to a 3D axes with *dims* shape.
+        """
+        assert len(multi_index) == len(dims) == 3
+        assert len(multi_index[0]) == len(multi_index[1]) == len(multi_index[2])
+        return np.ravel_multi_index([multi_index[2], multi_index[1], multi_index[0]], dims)
+
     def scale(self, Sx, Sy, Sz):
         """ ??? """
         return RegularAxes3(self.axis_x.scale(Sx), self.axis_y.scale(Sy), self.axis_z.scale(Sz))
@@ -166,6 +187,40 @@ class RegularAxes3:
         self._actor.SetMapper(self._mapper)
 
         return self._actor
+
+
+    def voxel_actor(self, ijk, color='CadetBlue'):
+        """
+        Create a VTK actor for the (*ijk*)th voxel element using
+        web color *color*. Note that `i` corresponds to the z
+        dimension, `j` to the y dimension, and `k` to the x dimension.
+        """
+        # https://en.wikipedia.org/wiki/Web_colors
+        i, j, k = ijk
+
+        xmin = self.axis_x.borders[k]
+        xmax = self.axis_x.borders[k+1]
+
+        ymin = self.axis_y.borders[j]
+        ymax = self.axis_y.borders[j+1]
+
+        zmin = self.axis_z.borders[i]
+        zmax = self.axis_z.borders[i+1]
+
+        cube = vtk.vtkCubeSource()
+        cube.SetBounds(xmin, xmax, ymin, ymax, zmin, zmax)
+        cube.Update()
+
+        mapper = vtk.vtkPolyDataMapper()
+        mapper.SetInputData(cube.GetOutput())
+
+        colors = vtk.vtkNamedColors()
+
+        actor = vtk.vtkActor()
+        actor.SetMapper(mapper)
+        actor.GetProperty().SetColor(colors.GetColor3d(color))
+
+        return actor
 
 
     def volume(self, X, vmin=None, vmax=None, cmap='viridis', amin=0, amax=1):
