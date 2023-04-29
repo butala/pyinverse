@@ -81,7 +81,11 @@ class RegularGrid:
         return self.axis_x.N_fast, self.axis_y.N_fast
 
     def __iter__(self):
-        """Iterate over each grid center coordinate in proper order, i.e., the associated (i,j)th matrix element is located at coordinate (axis_y[i], axis_x[j])."""
+        """
+        Iterate over each grid center coordinate in proper order,
+        i.e., the associated (i,j)th matrix element is located at
+        coordinate (axis_y[i], axis_x[j]).
+        """
         for i in self.axis_y:
             for j in self.axis_x:
                 yield (i, j)
