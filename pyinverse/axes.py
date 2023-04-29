@@ -58,6 +58,18 @@ class RegularAxes3:
         # row index changes slowest, then column, and depth changes fastest
         return tuple([axis.N for axis in [self.axis_z, self.axis_y, self.axis_x]])
 
+    def __iter__(self):
+        """
+        Iterate over the grid center coordinates in storage order,
+        i.e., z changes slowest, then y, and finally x changes
+        fastest.
+        """
+        for i in self.axis_z:
+            for j in self.axis_y:
+                for k in self.axis_x:
+                    yield (i, j, k)
+
+
     @property
     def centers(self):
         """
@@ -72,7 +84,7 @@ class RegularAxes3:
             return self.centers
 
     @classmethod
-    def axes_unravel_indices(cls, indices, shape):
+    def unravel_indices(cls, indices, shape):
         """
         Convert the list of voxel flat *indices* to the tuple of
         list of indices in (z, y, x) order corresponding to a 3D axes
@@ -82,7 +94,7 @@ class RegularAxes3:
         return (coords[2], coords[1], coords[0])
 
     @classmethod
-    def axes_ravel_multi_index(cls, multi_index, dims):
+    def ravel_multi_index(cls, multi_index, dims):
         """
         Convert the tuple of list of indices in (z, y, x) order
         *multi_index* to an array of flattened indices corresponding
