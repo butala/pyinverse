@@ -26,7 +26,7 @@ def regular_axes2polytope(axes3, ijk):
     return A, b
 
 
-def theta_grid2half_planes(theta, phi, grid_uv, mn, degrees=False):
+def grid_uv2half_planes(theta, phi, grid_uv, mn, degrees=False):
     """
     Return the polytope, i.e., A and b in the equation Ax <= b,
     that corresponds to (*mn*)th u-v plane element of *grid_uv*. The
