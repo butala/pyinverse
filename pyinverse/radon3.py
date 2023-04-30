@@ -1,6 +1,15 @@
+import math
+import multiprocessing
+from itertools import product
+from functools import partial
+
 import numpy as np
 import scipy as sp
 import vtk
+from tqdm import tqdm
+
+from .axes import RegularAxes3
+from .volume import volume_cal
 
 
 def regular_axes2polytope(axes3, ijk):
@@ -22,7 +31,30 @@ def regular_axes2polytope(axes3, ijk):
          -axes3.axis_y.borders[j],
           axes3.axis_y.borders[j + 1],
          -axes3.axis_x.borders[k],
-          axes3.axis_x.borders[k + 1]]
+         axes3.axis_x.borders[k + 1]]
+    return A, b
+
+
+def regular_axes2polytope2(axes3, i1, i2, j1, j2, k1, k2):
+    """
+    Return the polytope, i.e., A and b in the equation Ax <= b,
+    that corresponds to portion of *axes3* with borders between the
+    *i1*th and *i2*th, *j1*th and *j2*th, and *k1*th and *k2*th
+    borders. The indexing convention is i, j, and k correspond to z, y,
+    and x, respectively.
+    """
+    A = [[-1,  0,  0],
+         [ 1,  0,  0],
+         [ 0, -1,  0],
+         [ 0,  1,  0],
+         [ 0,  0, -1],
+         [ 0,  0,  1]]
+    b = [-axes3.axis_z.borders[i1],
+          axes3.axis_z.borders[i2],
+         -axes3.axis_y.borders[j1],
+          axes3.axis_y.borders[j2],
+         -axes3.axis_x.borders[k1],
+          axes3.axis_x.borders[k2]]
     return A, b
 
 
@@ -91,3 +123,91 @@ def beam2actor(grid, ij, e_min_max, theta, phi, color='Peru', alpha=0.2, deg=Fal
     actor.RotateZ(phi_deg)
 
     return actor
+
+
+def radon_row(A_mn, b_mn, u_T, v_T, axes3):
+    """
+    Divide and conquer approach to calculate the volume
+    intersections of the parallel beam determined by the *A_mn* x <=
+    *b_mn* (see `grid_uv2half_planes` to calculate *A_mn* and *b_mn*)
+    with the voxels in the `RegularAxes3` *axes3*. The scalars *u_T*
+    and *v_T* are width and height of the parallel beam in the u-v
+    plane. Return a tuple with a list of nonzero volumes and the
+    corresponding list of flat indices to the voxels.
+    """
+    Nz, Ny, Nx = axes3.shape
+
+    data = []
+    indices = []
+
+    def radon_helper(data_i, indices_i, i1, i2, j1, j2, k1, k2):
+        if (i2 <= i1) or (j2 <= j1) or (k2 <= k1):
+            return
+
+        A_ijk, b_ijk = regular_axes2polytope2(axes3, i1, i2, j1, j2, k1, k2)
+
+        A_lass = np.vstack((A_ijk, A_mn))
+        b_lass = np.hstack((b_ijk, b_mn))
+
+        vol = volume_cal(10, 3, A_lass, b_lass) / (u_T * v_T)
+
+        if np.allclose(vol, 0):
+            return
+
+        if (i2 == i1 + 1) and (j2 == j1 + 1) and (k2 == k1 + 1):
+            data_i.append(vol)
+            indices_i.append((k1, j1, i1))
+
+        else:
+            bi = i2 - i1
+            ci = math.ceil(bi/2) + i1
+
+            bj = j2 - j1
+            cj = math.ceil(bj/2) + j1
+
+            bk = k2 - k1
+            ck = math.ceil(bk/2) + k1
+
+            radon_helper(data_i, indices_i, i1, ci, j1, cj, k1, ck)
+            radon_helper(data_i, indices_i, ci, i2, j1, cj, k1, ck)
+            radon_helper(data_i, indices_i, i1, ci, cj, j2, k1, ck)
+            radon_helper(data_i, indices_i, ci, i2, cj, j2, k1, ck)
+
+            radon_helper(data_i, indices_i, i1, ci, j1, cj, ck, k2)
+            radon_helper(data_i, indices_i, ci, i2, j1, cj, ck, k2)
+            radon_helper(data_i, indices_i, i1, ci, cj, j2, ck, k2)
+            radon_helper(data_i, indices_i, ci, i2, cj, j2, ck, k2)
+        return data_i, indices_i
+
+    data, ijk = radon_helper([], [], 0, Nz, 0, Ny, 0, Nx)
+    flat_indices = RegularAxes3.ravel_multi_index(list(zip(*ijk)), axes3.shape)
+    sorted_indices, sorted_data = list(zip(*sorted(zip(flat_indices, data), key=lambda x: x[0])))
+    return sorted_data, sorted_indices
+
+
+def radon_row_mn(theta, phi, axes3, grid_uv, mn, degrees=True):
+    """ """
+    A_mn, b_mn = grid_uv2half_planes(theta, phi, grid_uv, mn, degrees=degrees)
+    return radon_row(A_mn, b_mn, grid_uv.axis_x.T, grid_uv.axis_y.T, axes3)
+
+
+def radon_matrix(theta, phi, axes3, grid_uv, n_cpu=multiprocessing.cpu_count(), degrees=True):
+    """
+    """
+    Nv, Nu = grid_uv.shape
+
+    ij = product(range(Nv), range(Nu))
+
+    radon_row_helper = partial(radon_row_mn, theta, phi, axes3, grid_uv, degrees=degrees)
+
+    data = []
+    indices = []
+    indptr = [0]
+
+    with multiprocessing.Pool(n_cpu) as pool:
+        for data_mn, indices_mn in tqdm(pool.imap(radon_row_helper, ij), total=Nv*Nu):
+            data.extend(data_mn)
+            indices.extend(indices_mn)
+            indptr.append(indptr[-1] + len(data_mn))
+    H = sp.sparse.csr_matrix((data, indices, indptr), shape=[Nu * Nv, np.prod(axes3.shape)])
+    return H
