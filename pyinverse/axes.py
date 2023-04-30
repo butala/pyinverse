@@ -154,6 +154,11 @@ class RegularAxes3:
         X_spectrum *= P * self.axis_x.T * self.axis_y.T * self.axis_z.T
         return axes3_freq, X_spectrum
 
+    # The whole blanking system should be based on if X is a sparse
+    # matrix. SciPy does not support sparse matrices of dimension
+    # higher than 2, but the "sparse" package does. However, it
+    # depends on numba which currently does not support python
+    # 3.11. There is an update in the works.
     def _vtk_plot_setup(self, X, vmin=None, vmax=None, cmap='viridis', blank_cells=None):
         """
         """
@@ -177,7 +182,7 @@ class RegularAxes3:
         self._vtk_grid.GetCellData().SetScalars(self._values)
         if blank_cells is not None:
             for (i, j, k) in blank_cells:
-                self._vtk_grid.BlankCell(i, j, k)
+                self._vtk_grid.BlankCell(k, j, i)
         if vmin is None:
             vmin = X.min()
         if vmax is None:
@@ -188,6 +193,7 @@ class RegularAxes3:
 
     def actor(self, X, vmin=None, vmax=None, cmap='viridis', blank_cells=None):
         """ ??? """
+        # VTK BlankCell uses the convention (ijk) is (xyz)! But, we use (ijk) is (zyx) in axes3.
         vmin, vmax = self._vtk_plot_setup(X, vmin=vmin, vmax=vmax, cmap=cmap, blank_cells=blank_cells)
         # Create a mapper and actor
         self._mapper = vtk.vtkDataSetMapper()
@@ -294,7 +300,7 @@ if __name__ == '__main__':
                                   (-3, 4, Nz))
 
     # blank_cells = None
-    blank_cells = [(0, 0, 0)]
+    blank_cells = [(0, 0, 0), (1, 0, 0)]
     X_actor = axes3.actor(X, vmin=0, vmax=28, blank_cells=blank_cells)
     X_actor.GetProperty().LightingOff()
 
