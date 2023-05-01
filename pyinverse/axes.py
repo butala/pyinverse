@@ -159,16 +159,25 @@ class RegularAxes3:
     # higher than 2, but the "sparse" package does. However, it
     # depends on numba which currently does not support python
     # 3.11. There is an update in the works.
-    def _vtk_plot_setup(self, X, vmin=None, vmax=None, cmap='viridis', blank_cells=None):
+
+    # Interesting discussion of VTK, LUT, and nan mapping
+    # https://gitlab.kitware.com/vtk/vtk/-/issues/18197
+    def _vtk_plot_setup(self, X, vmin=None, vmax=None, cmap='viridis', blank_nan=False):
         """
         """
         try:
             self._vtk_grid
+            if blank_nan or self._vtk_grid.HasAnyBlankCells():
+                # Do not reuse self._vtk_grid if cells have been
+                # blanked. There will be a clash. Use a RegularAxes3
+                # with the same parameters the actor instead (or come
+                # up with a clever way not have the clash issue).
+                assert False
         except AttributeError:
-            if blank_cells is None:
-                self._vtk_grid = vtk.vtkImageData()
-            else:
+            if blank_nan:
                 self._vtk_grid = vtk.vtkUniformGrid()
+            else:
+                self._vtk_grid = vtk.vtkImageData()
             Nz, Ny, Nx = self.shape
             self._vtk_grid.SetDimensions(Nx+1, Ny+1, Nz+1)
             self._vtk_grid.SetOrigin(self.axis_x.borders[0],
@@ -180,21 +189,22 @@ class RegularAxes3:
         assert X.shape == self.shape
         self._values = vtk.util.numpy_support.numpy_to_vtk(X.flat)
         self._vtk_grid.GetCellData().SetScalars(self._values)
-        if blank_cells is not None:
-            for (i, j, k) in blank_cells:
-                self._vtk_grid.BlankCell(k, j, i)
+        if blank_nan:
+            for (k, j, i) in np.argwhere(np.isnan(X)):
+                # VTK uses i=x, j=y, k=z for BlankCell.
+                self._vtk_grid.BlankCell(i, j, k)
         if vmin is None:
-            vmin = X.min()
+            vmin = np.nanmin(X)
         if vmax is None:
-            vmax = X.max()
+            vmax = np.nanmax(X)
         self._lut = cmap2color_transfer_function(vmin=vmin, vmax=vmax, cmap=cmap)
         return vmin, vmax
 
 
-    def actor(self, X, vmin=None, vmax=None, cmap='viridis', blank_cells=None):
+    def actor(self, X, vmin=None, vmax=None, cmap='viridis', blank_nan=False):
         """ ??? """
-        # VTK BlankCell uses the convention (ijk) is (xyz)! But, we use (ijk) is (zyx) in axes3.
-        vmin, vmax = self._vtk_plot_setup(X, vmin=vmin, vmax=vmax, cmap=cmap, blank_cells=blank_cells)
+        vmin, vmax = self._vtk_plot_setup(X, vmin=vmin, vmax=vmax, cmap=cmap, blank_nan=blank_nan)
+
         # Create a mapper and actor
         self._mapper = vtk.vtkDataSetMapper()
         self._mapper.SetInputData(self._vtk_grid)
@@ -292,16 +302,17 @@ if __name__ == '__main__':
     # [21 22 23 24;
     #  25 26 27 28]
 
-    X = np.array([[[1, 11, 21], [2, 12, 22], [3, 13, 23], [4, 14, 24]], [[5, 15, 25], [6, 16, 26], [7, 17, 27], [8, 18, 28]]])
+    X = np.array([[[1, 11, 21], [2, 12, 22], [3, 13, 23], [4, 14, 24]], [[5, 15, 25], [6, 16, 26], [7, 17, 27], [8, 18, 28]]], dtype=float)
     Nz, Ny, Nx = X.shape
 
     axes3 = RegularAxes3.linspace((-1, 1.5, Nx),
                                   (-2, 3.5, Ny),
                                   (-3, 4, Nz))
 
-    # blank_cells = None
-    blank_cells = [(0, 0, 0), (1, 0, 0)]
-    X_actor = axes3.actor(X, vmin=0, vmax=28, blank_cells=blank_cells)
+    X[0, 0, 0] = np.nan
+    X[0, 0, 1] = np.nan
+
+    X_actor = axes3.actor(X, vmin=0, vmax=28, blank_nan=True)
     X_actor.GetProperty().LightingOff()
 
     # X_volume = axes3.volume(X, vmin=0, vmax=Nx*Ny*Nz, amin=0.2)
