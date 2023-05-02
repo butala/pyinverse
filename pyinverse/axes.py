@@ -251,10 +251,12 @@ class RegularAxes3:
         return actor
 
 
-    def volume(self, X, vmin=None, vmax=None, cmap='viridis', amin=0, amax=1):
+    # How to do this? https://www.kitware.com/volumetric-rendering-in-vtk-and-paraview-introducing-the-scattering-model-on-gpu/
+    # https://www.kitware.com/cinematic-volume-rendering/
+    def volume(self, X, vmin=None, vmax=None, cmap='viridis', amin=0, amax=1, blank_nan=False):
         """
         """
-        vmin, vmax = self._vtk_plot_setup(X, vmin=vmin, vmax=vmax, cmap=cmap)
+        vmin, vmax = self._vtk_plot_setup(X, vmin=vmin, vmax=vmax, cmap=cmap, blank_nan=blank_nan)
 
         self._opacity_tf = vtk.vtkPiecewiseFunction()
         self._opacity_tf.AddPoint(vmin, amin)
