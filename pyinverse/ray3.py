@@ -125,7 +125,7 @@ def beam2actor(grid, ij, e_min_max, theta, phi, color='Peru', alpha=0.2, deg=Fal
     return actor
 
 
-def radon_row(A_mn, b_mn, u_T, v_T, axes3):
+def ray_row(A_mn, b_mn, u_T, v_T, axes3):
     """
     Divide and conquer approach to calculate the volume
     intersections of the parallel beam determined by the *A_mn* x <=
@@ -140,7 +140,7 @@ def radon_row(A_mn, b_mn, u_T, v_T, axes3):
     data = []
     indices = []
 
-    def radon_helper(data_i, indices_i, i1, i2, j1, j2, k1, k2):
+    def ray_helper(data_i, indices_i, i1, i2, j1, j2, k1, k2):
         if (i2 <= i1) or (j2 <= j1) or (k2 <= k1):
             return
 
@@ -168,44 +168,44 @@ def radon_row(A_mn, b_mn, u_T, v_T, axes3):
             bk = k2 - k1
             ck = math.ceil(bk/2) + k1
 
-            radon_helper(data_i, indices_i, i1, ci, j1, cj, k1, ck)
-            radon_helper(data_i, indices_i, ci, i2, j1, cj, k1, ck)
-            radon_helper(data_i, indices_i, i1, ci, cj, j2, k1, ck)
-            radon_helper(data_i, indices_i, ci, i2, cj, j2, k1, ck)
+            ray_helper(data_i, indices_i, i1, ci, j1, cj, k1, ck)
+            ray_helper(data_i, indices_i, ci, i2, j1, cj, k1, ck)
+            ray_helper(data_i, indices_i, i1, ci, cj, j2, k1, ck)
+            ray_helper(data_i, indices_i, ci, i2, cj, j2, k1, ck)
 
-            radon_helper(data_i, indices_i, i1, ci, j1, cj, ck, k2)
-            radon_helper(data_i, indices_i, ci, i2, j1, cj, ck, k2)
-            radon_helper(data_i, indices_i, i1, ci, cj, j2, ck, k2)
-            radon_helper(data_i, indices_i, ci, i2, cj, j2, ck, k2)
+            ray_helper(data_i, indices_i, i1, ci, j1, cj, ck, k2)
+            ray_helper(data_i, indices_i, ci, i2, j1, cj, ck, k2)
+            ray_helper(data_i, indices_i, i1, ci, cj, j2, ck, k2)
+            ray_helper(data_i, indices_i, ci, i2, cj, j2, ck, k2)
         return data_i, indices_i
 
-    data, ijk = radon_helper([], [], 0, Nz, 0, Ny, 0, Nx)
+    data, ijk = ray_helper([], [], 0, Nz, 0, Ny, 0, Nx)
     flat_indices = RegularAxes3.ravel_multi_index(list(zip(*ijk)), axes3.shape)
     sorted_indices, sorted_data = list(zip(*sorted(zip(flat_indices, data), key=lambda x: x[0])))
     return sorted_data, sorted_indices
 
 
-def radon_row_mn(theta, phi, axes3, grid_uv, mn, degrees=True):
+def ray_row_mn(theta, phi, axes3, grid_uv, mn, degrees=True):
     """ """
     A_mn, b_mn = grid_uv2half_planes(theta, phi, grid_uv, mn, degrees=degrees)
-    return radon_row(A_mn, b_mn, grid_uv.axis_x.T, grid_uv.axis_y.T, axes3)
+    return ray_row(A_mn, b_mn, grid_uv.axis_x.T, grid_uv.axis_y.T, axes3)
 
 
-def radon_matrix(theta, phi, axes3, grid_uv, n_cpu=multiprocessing.cpu_count(), degrees=True):
+def ray_matrix(theta, phi, axes3, grid_uv, n_cpu=multiprocessing.cpu_count(), degrees=True):
     """
     """
     Nv, Nu = grid_uv.shape
 
     ij = product(range(Nv), range(Nu))
 
-    radon_row_helper = partial(radon_row_mn, theta, phi, axes3, grid_uv, degrees=degrees)
+    ray_row_helper = partial(ray_row_mn, theta, phi, axes3, grid_uv, degrees=degrees)
 
     data = []
     indices = []
     indptr = [0]
 
     with multiprocessing.Pool(n_cpu) as pool:
-        for data_mn, indices_mn in tqdm(pool.imap(radon_row_helper, ij), total=Nv*Nu):
+        for data_mn, indices_mn in tqdm(pool.imap(ray_row_helper, ij), total=Nv*Nu):
             data.extend(data_mn)
             indices.extend(indices_mn)
             indptr.append(indptr[-1] + len(data_mn))
