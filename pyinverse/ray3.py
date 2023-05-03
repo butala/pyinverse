@@ -1,5 +1,8 @@
+import sys
+import logging
 import math
 import multiprocessing
+from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from itertools import product
 from functools import partial
 
@@ -8,6 +11,7 @@ import scipy as sp
 import vtk
 from tqdm import tqdm
 
+from .grid import RegularGrid
 from .axes import RegularAxes3
 from .volume import volume_cal
 
@@ -211,3 +215,114 @@ def ray_matrix(theta, phi, axes3, grid_uv, n_cpu=multiprocessing.cpu_count(), de
             indptr.append(indptr[-1] + len(data_mn))
     H = sp.sparse.csr_matrix((data, indices, indptr), shape=[Nu * Nv, np.prod(axes3.shape)])
     return H
+
+
+def main(argv=None):
+    if argv is None:
+        argv = sys.argv
+
+    parser = ArgumentParser('Compute the 3-D ray transform matrix.',
+                            formatter_class=ArgumentDefaultsHelpFormatter)
+    parser.add_argument('H_filename',
+                        type=str,
+                        help='output matrix filename (in scipy.sparse npz format)')
+    parser.add_argument('theta',
+                        type=float,
+                        help='polar angle ([-90, 90] degrees, rotation relative to the x-y plane)')
+    parser.add_argument('phi',
+                        type=float,
+                        help='azimuth angle ([-180, 180] degrees, rotation about \hat{z})')
+    xyz_group = parser.add_mutually_exclusive_group(required=True)
+    xyz_group.add_argument('-n',
+                           type=int,
+                           help='axes3 Nx = Ny = Nz = n')
+    xyz_group.add_argument('--xyz',
+                           nargs=3,
+                           type=int,
+                           help='axes3 Nx, Ny, and Nz')
+    uv_group = parser.add_mutually_exclusive_group(required=True)
+    uv_group.add_argument('-u',
+                          type=int,
+                          help='uv-plane grid Nu = Nv = u')
+    uv_group.add_argument('--uv',
+                          nargs=2,
+                          type=int,
+                          help='uv-plane grid Nu and Nv')
+    parser.add_argument('--xlim',
+                        type=float,
+                        nargs=2,
+                        default=(-1, 1),
+                        help='horizontal axis bounds')
+    parser.add_argument('--ylim',
+                        type=float,
+                        nargs=2,
+                        default=(-1, 1),
+                        help='vertical axis bounds')
+    parser.add_argument('--zlim',
+                        type=float,
+                        nargs=2,
+                        default=(-1, 1),
+                        help='depth axis bounds')
+    parser.add_argument('--ulim',
+                        type=float,
+                        nargs=2,
+                        default=(-1, 1),
+                        help='uv-plane horizontal axis bounds')
+    parser.add_argument('--vlim',
+                        type=float,
+                        nargs=2,
+                        default=(-1, 1),
+                        help='uv-plane vertical axis bounds')
+    parser.add_argument('--radians',
+                        action='store_true',
+                        help='theta and phi are specified in radians instead of degrees')
+    parser.add_argument('--n_cpu',
+                        type=int,
+                        default=multiprocessing.cpu_count(),
+                        help='number of cores to use (note there is a limit of 61 on windows)')
+
+    args = parser.parse_args(argv[1:])
+
+    if args.radians:
+        theta_deg = np.degrees(args.theta)
+        phi_deg = np.degrees(args.phi)
+    else:
+        theta_deg = args.theta
+        phi_deg = args.phi
+
+    assert -90 <= args.theta <= 90
+    assert -180 <= args.phi <= 180
+
+    if args.n is not None:
+        assert args.n > 0
+        Nx = Ny = Nz = args.n
+    else:
+        for x in args.xyz:
+            assert x > 0
+        Nx, Ny, Nz = args.xyz
+
+    if args.u is not None:
+        assert args.u > 0
+        Nu = Nv = args.u
+    else:
+        Nu, Nv = args.uv
+        assert Nu > 0
+        assert Nv > 0
+
+    assert args.n_cpu > 0
+
+    axes3 = RegularAxes3.linspace((args.xlim[0], args.xlim[1], Nx),
+                                  (args.ylim[0], args.ylim[1], Ny),
+                                  (args.zlim[0], args.zlim[1], Nz))
+
+    grid_uv = RegularGrid.linspace((args.ulim[0], args.ulim[1], Nu),
+                                   (args.vlim[0], args.vlim[1], Nz))
+
+    H = ray_matrix(theta_deg, phi_deg, axes3, grid_uv, n_cpu=args.n_cpu)
+
+    sp.sparse.save_npz(args.H_filename, H)
+
+
+if __name__ == '__main__':
+    logging.basicConfig(level=logging.INFO)
+    sys.exit(main())
