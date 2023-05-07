@@ -20,9 +20,84 @@
 #or it cannot handle fractions for now, still working on the script and other methods.
 
 
-
+from fractions import Fraction
 
 import numpy as np
+
+
+
+def remove_duplicate_rows(A, b):
+    """
+    """
+    # This is brittle, something based on numpy.allclose would be more robust
+    A_prime = np.hstack((A, b[:, np.newaxis]))
+    A_prime_row_norm = np.linalg.norm(A_prime, axis=1)
+    A_prime_normalized = A_prime / A_prime_row_norm[:, np.newaxis]
+    Z = np.array(list(set([tuple(x) for x in A_prime_normalized])))
+    return Z[:, :-1], Z[:, -1]
+
+
+def lass_vol(A, b, allclose=False):
+    """
+    """
+
+    M, N = A.shape
+    assert b.ndim == 1 and len(b) == M
+
+    # base case
+    if N == 1:
+        I_positive = A.flat > 0
+        I_negative = A.flat < 0
+
+        if sum(I_positive) == 0 or sum(I_negative) == 0:
+            vol = np.inf
+        else:
+            vol = max(0, np.min(b[I_positive] / A.flat[I_positive]) - np.max(b[I_negative] / A.flat[I_negative]))
+        return vol
+
+    vol = 0
+    A_tilde = np.empty((M-1, N-1))
+    b_tilde = np.empty(M-1)
+
+    for i in range(M):
+        if allclose:
+            if np.allclose(b[i], 0):
+                continue
+        else:
+            if b[i] == 0:
+                continue
+
+        # Find non-zero column in row i to use as the pivot
+        for j in range(N):
+            if allclose:
+                if not np.allclose(A[i, j], 0):
+                    # pivot column j found
+                    break
+            else:
+                if A[i, j] != 0:
+                    # pivot column j found
+                    break
+        else:
+            # every column in row i is 0 --- skip this row
+            continue
+
+        k_prime = 0
+        for k in range(M):
+            if k == i:
+                continue
+
+            l_prime = 0
+            for l in range(N):
+                if l == j:
+                    continue
+                A_tilde[k_prime, l_prime] = A[k, l] - A[k, j] * A[i, l] / A[i, j]
+                l_prime += 1
+
+            b_tilde[k_prime] = b[k] - A[k, j] / A[i, j] * b[i]
+            k_prime += 1
+
+        vol += b[i] / abs(A[i, j]) * lass_vol(A_tilde, b_tilde)
+    return vol / N
 
 
 def volume_cal(m,d,A,b):
@@ -81,7 +156,6 @@ def volume_cal(m,d,A,b):
                 b_math[m_count] = b_t[i]
                 m_count = m_count+1
 
-
         #here on we can use A_math and b_math to calculate as before
         m_new = m_count
         d_new = d
@@ -135,7 +209,10 @@ def read_hyperplanes(filename):
         G_Hyperplanes = None
         for line in keywords:
             if (counter==3):
-                a,b,_ = map(str,line.split())
+                try:
+                    a,b,_ = map(str,line.split())
+                except:
+                    continue
                 G_m = int(a)
                 G_d = int(b)-1
                 G_Hyperplanes = np.zeros((G_m,G_d+1))
@@ -145,7 +222,10 @@ def read_hyperplanes(filename):
                 row = list(op)
                 s_c = 0
                 for i in row:
-                    G_Hyperplanes[counter-4][s_c] = float(i)
+                    try:
+                        G_Hyperplanes[counter-4][s_c] = float(i)
+                    except ValueError:
+                        G_Hyperplanes[counter-4][s_c] = float(Fraction(i))
                     s_c = s_c +1
 
             counter = counter+1
