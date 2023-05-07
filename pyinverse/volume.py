@@ -37,7 +37,7 @@ def remove_duplicate_rows(A, b):
     return Z[:, :-1], Z[:, -1]
 
 
-def lass_vol(A, b, allclose=False):
+def lass_vol(A, b):
     """
     """
 
@@ -60,23 +60,14 @@ def lass_vol(A, b, allclose=False):
     b_tilde = np.empty(M-1)
 
     for i in range(M):
-        if allclose:
-            if np.allclose(b[i], 0):
-                continue
-        else:
-            if b[i] == 0:
-                continue
+        if np.allclose(b[i], 0):
+             continue
 
         # Find non-zero column in row i to use as the pivot
         for j in range(N):
-            if allclose:
-                if not np.allclose(A[i, j], 0):
-                    # pivot column j found
-                    break
-            else:
-                if A[i, j] != 0:
-                    # pivot column j found
-                    break
+            if not np.allclose(A[i, j], 0):
+                # pivot column j found
+                break
         else:
             # every column in row i is 0 --- skip this row
             continue
