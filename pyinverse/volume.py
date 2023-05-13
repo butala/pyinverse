@@ -25,16 +25,56 @@ from fractions import Fraction
 import numpy as np
 
 
+class EmptyHalfspaceException(Exception):
+    pass
 
-def remove_duplicate_rows(A, b):
+
+def filter_parallel_constraints(A, b):
     """
     """
-    # This is brittle, something based on numpy.allclose would be more robust
-    A_prime = np.hstack((A, b[:, np.newaxis]))
-    A_prime_row_norm = np.linalg.norm(A_prime, axis=1)
-    A_prime_normalized = A_prime / A_prime_row_norm[:, np.newaxis]
-    Z = np.array(list(set([tuple(x) for x in A_prime_normalized])))
-    return Z[:, :-1], Z[:, -1]
+    M, N = A.shape
+
+    A_out = []
+    b_out = []
+
+    parallel_halfspaces = set()
+
+    for i in range(M):
+        if i in parallel_halfspaces:
+            continue
+        smallest_b = None
+        # This idiom needs to encapsulated into a function
+        for j in range(N):
+            if not np.allclose(A[i, j], 0):
+                break
+        else:
+            # row is all zeros
+            continue
+        scale_factor_i = abs(A[i, j])
+        for k in range(i+1, M):
+            if np.allclose(A[k, j], 0):
+                continue
+            scale_factor_k = abs(A[k, j])
+
+            if np.allclose(A[i, :] / scale_factor_i, A[k, :] / scale_factor_k):
+                # parallel half spaces detected --- remove the larger one as it is redundant
+                parallel_halfspaces.add(k)
+                if b[i] <= b[k]:
+                    smallest_b = b[i]
+                else:
+                    smmalest_b = b[k]
+            elif np.allclose(A[i, :] / scale_factor_i, -A[k, :] / scale_factor_k):
+                # parallel half spaces detected
+                if -b[k] > b[i]:
+                    # the half spaces do not overlap
+                    raise EmptyHalfspaceException()
+        A_out.append(A[i, :])
+        if smallest_b is not None:
+            b_out.append(smallest_b)
+        else:
+            b_out.append(b[i])
+
+    return np.array(A_out), np.array(b_out)
 
 
 def lass_vol(A, b):
@@ -54,6 +94,14 @@ def lass_vol(A, b):
         else:
             vol = max(0, np.min(b[I_positive] / A.flat[I_positive]) - np.max(b[I_negative] / A.flat[I_negative]))
         return vol
+
+    try:
+        A, b = filter_parallel_constraints(A, b)
+    except EmptyHalfspaceException:
+        return 0
+
+    M, N = A.shape
+    assert b.ndim == 1 and len(b) == M
 
     vol = 0
     A_tilde = np.empty((M-1, N-1))
@@ -221,3 +269,41 @@ def read_hyperplanes(filename):
 
             counter = counter+1
     return [G_m,G_d,G_Hyperplanes]
+
+
+if __name__ == '__main__':
+    A = np.array([[ -1,  1],
+                  [  2,  1],
+                  [1/2, -1],
+                  [ -1,  0],
+                  [  0, -1]])
+
+    b1 = 1
+    b2 = 2
+    b3 = 3
+
+    # 0.8333333333333333
+    b = np.array([b1, b2, b3, 0, 0])
+
+    print(lass_vol(A, b))
+
+    print('-' * 30)
+
+    A = np.array([[-1.        ,  0.        ,  0.        ],
+                  [ 1.        ,  0.        ,  0.        ],
+                  [ 0.        , -1.        ,  0.        ],
+                  [ 0.        ,  1.        ,  0.        ],
+                  [ 0.        ,  0.        , -1.        ],
+                  [ 0.        ,  0.        ,  1.        ],
+                  [-0.92387953,  0.38268343,  0.        ],
+                  [ 0.92387953, -0.38268343,  0.        ],
+                  [-0.33141357, -0.80010315, -0.5       ],
+                  [ 0.33141357,  0.80010315,  0.5       ]])
+
+    b = np.array([ 4.00000000e-01,  2.22044605e-16,  2.85714286e-01,  0.00000000e+00,
+                  -7.50000000e-01,  1.25000000e+00,  8.00000000e-01, -4.00000000e-01,
+                  -2.50000000e-01,  7.50000000e-01])
+
+    # 0
+    print(lass_vol(A, b))
+    print(volume_cal(10, 3, A, b))
