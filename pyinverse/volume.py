@@ -28,6 +28,9 @@ import numpy as np
 class EmptyHalfspaceException(Exception):
     pass
 
+class InfiniteVolumeException(Exception):
+    pass
+
 
 def filter_parallel_constraints(A, b):
     """
@@ -62,7 +65,7 @@ def filter_parallel_constraints(A, b):
                 if b[i] <= b[k]:
                     smallest_b = b[i]
                 else:
-                    smmalest_b = b[k]
+                    smallest_b = b[k]
             elif np.allclose(A[i, :] / scale_factor_i, -A[k, :] / scale_factor_k):
                 # parallel half spaces detected
                 if -b[k] > b[i]:
@@ -74,69 +77,76 @@ def filter_parallel_constraints(A, b):
         else:
             b_out.append(b[i])
 
-    return np.array(A_out), np.array(b_out)
+    return np.atleast_2d(np.array(A_out)), np.array(b_out)
 
 
 def lass_vol(A, b):
     """
     """
+    def lass_vol_recursion(A, b):
+        M, N = A.shape
+        assert b.ndim == 1 and len(b) == M
 
-    M, N = A.shape
-    assert b.ndim == 1 and len(b) == M
+        if M == 1:
+            raise InfiniteVolumeException()
 
-    # base case
-    if N == 1:
-        I_positive = A.flat > 0
-        I_negative = A.flat < 0
+        # base case
+        if N == 1:
+            I_positive = A.flat > 0
+            I_negative = A.flat < 0
 
-        if sum(I_positive) == 0 or sum(I_negative) == 0:
-            vol = np.inf
-        else:
-            vol = max(0, np.min(b[I_positive] / A.flat[I_positive]) - np.max(b[I_negative] / A.flat[I_negative]))
-        return vol
+            if sum(I_positive) == 0 or sum(I_negative) == 0:
+                raise InfiniteVolumeException()
+            else:
+                vol = max(0, np.min(b[I_positive] / A.flat[I_positive]) - np.max(b[I_negative] / A.flat[I_negative]))
+            return vol
 
-    try:
         A, b = filter_parallel_constraints(A, b)
-    except EmptyHalfspaceException:
-        return 0
 
-    M, N = A.shape
-    assert b.ndim == 1 and len(b) == M
+        M, N = A.shape
+        assert b.ndim == 1 and len(b) == M
 
-    vol = 0
-    A_tilde = np.empty((M-1, N-1))
-    b_tilde = np.empty(M-1)
+        vol = 0
+        A_tilde = np.empty((M-1, N-1))
+        b_tilde = np.empty(M-1)
 
-    for i in range(M):
-        if np.allclose(b[i], 0):
-             continue
+        for i in range(M):
+            if np.allclose(b[i], 0):
+                 continue
 
-        # Find non-zero column in row i to use as the pivot
-        for j in range(N):
-            if not np.allclose(A[i, j], 0):
-                # pivot column j found
-                break
-        else:
-            # every column in row i is 0 --- skip this row
-            continue
-
-        k_prime = 0
-        for k in range(M):
-            if k == i:
+            # Find non-zero column in row i to use as the pivot
+            for j in range(N):
+                if not np.allclose(A[i, j], 0):
+                    # pivot column j found
+                    break
+            else:
+                # every column in row i is 0 --- skip this row
                 continue
 
-            l_prime = 0
-            for l in range(N):
-                if l == j:
+            k_prime = 0
+            for k in range(M):
+                if k == i:
                     continue
-                A_tilde[k_prime, l_prime] = A[k, l] - A[k, j] * A[i, l] / A[i, j]
-                l_prime += 1
 
-            b_tilde[k_prime] = b[k] - A[k, j] / A[i, j] * b[i]
-            k_prime += 1
+                l_prime = 0
+                for l in range(N):
+                    if l == j:
+                        continue
+                    A_tilde[k_prime, l_prime] = A[k, l] - A[k, j] * A[i, l] / A[i, j]
+                    l_prime += 1
 
-        vol += b[i] / abs(A[i, j]) * lass_vol(A_tilde, b_tilde)
-    return vol / N
+                b_tilde[k_prime] = b[k] - A[k, j] / A[i, j] * b[i]
+                k_prime += 1
+
+            vol += b[i] / abs(A[i, j]) * lass_vol_recursion(A_tilde, b_tilde)
+        return vol / N
+
+    try:
+        return lass_vol_recursion(A, b)
+    except EmptyHalfspaceException:
+        return 0
+    except InfiniteVolumeException:
+        return np.inf
 
 
 def volume_cal(m,d,A,b):
@@ -307,3 +317,22 @@ if __name__ == '__main__':
     # 0
     print(lass_vol(A, b))
     print(volume_cal(10, 3, A, b))
+    print('-' * 30)
+
+    A = np.array([[1, 1]])
+    b = np.array([1])
+
+    # inf
+    print(lass_vol(A, b))
+    #print(volume_cal(1, 2, A, b))
+
+    print('-' * 30)
+
+    # inf
+    A = np.array([[-0.13695936, -1.5532242],
+                  [ 1.11813139, -0.64901562]])
+
+    b = np.array([-0.50402157,  0.71513002])
+
+    print(lass_vol(A, b))
+    # print(volume_cal(2, 2, A, b))
