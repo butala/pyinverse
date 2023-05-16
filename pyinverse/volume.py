@@ -31,6 +31,20 @@ class EmptyHalfspaceException(Exception):
 class InfiniteVolumeException(Exception):
     pass
 
+class AllZeroRow(Exception):
+    pass
+
+
+def first_nonzero_column(A, i):
+    """
+    """
+    M, N = A.shape
+    assert i >= 0 and i < M
+    for j in range(N):
+        if not np.allclose(A[i, j], 0):
+            return j
+    raise AllZeroRow()
+
 
 def filter_parallel_constraints(A, b):
     """
@@ -46,12 +60,9 @@ def filter_parallel_constraints(A, b):
         if i in parallel_halfspaces:
             continue
         smallest_b = None
-        # This idiom needs to encapsulated into a function
-        for j in range(N):
-            if not np.allclose(A[i, j], 0):
-                break
-        else:
-            # row is all zeros
+        try:
+            j = first_nonzero_column(A, i)
+        except AllZeroRow:
             continue
         scale_factor_i = abs(A[i, j])
         for k in range(i+1, M):
@@ -114,13 +125,9 @@ def lass_vol(A, b):
             if np.allclose(b[i], 0):
                  continue
 
-            # Find non-zero column in row i to use as the pivot
-            for j in range(N):
-                if not np.allclose(A[i, j], 0):
-                    # pivot column j found
-                    break
-            else:
-                # every column in row i is 0 --- skip this row
+            try:
+                j = first_nonzero_column(A, i)
+            except AllZeroRow():
                 continue
 
             k_prime = 0
