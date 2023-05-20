@@ -1,4 +1,4 @@
-from setuptools import setup
+from setuptools import setup, Extension
 
 
 setup(name='pyinverse',
@@ -7,5 +7,10 @@ setup(name='pyinverse',
       author='Mark D. Butala',
       author_email='butala@illinois.edu',
       packages=['pyinverse'],
+      ext_modules=[
+          Extension(name='lassere',
+                    sources=['./lassere/lassere.c',
+                             './lassere/util.c'],
+                    extra_compile_args=['-O3'])],
       zip_safe=False
 )
