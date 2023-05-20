@@ -35,7 +35,7 @@ def regular_axes2polytope(axes3, ijk):
          -axes3.axis_y.borders[j],
           axes3.axis_y.borders[j + 1],
          -axes3.axis_x.borders[k],
-         axes3.axis_x.borders[k + 1]]
+          axes3.axis_x.borders[k + 1]]
     return A, b
 
 
