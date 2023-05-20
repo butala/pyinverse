@@ -21,9 +21,22 @@
 
 
 from fractions import Fraction
+from ctypes import c_double, c_size_t
 
 import numpy as np
 
+liblassere = np.ctypeslib.load_library('lassere', '/Users/butala/src/pyinverse/build/lib.macosx-13-x86_64-cpython-311')
+
+lassere_vol = liblassere.lassere_vol
+lassere_vol.restype = c_double
+lassere_vol.argtypes = [c_size_t,
+                        c_size_t,
+                        np.ctypeslib.ndpointer(dtype=c_double,
+                                               ndim=2,
+                                               flags='C'),
+                        np.ctypeslib.ndpointer(dtype=c_double,
+                                               ndim=1,
+                                               flags='C')]
 
 class EmptyHalfspaceException(Exception):
     pass
@@ -293,16 +306,18 @@ if __name__ == '__main__':
                   [  2,  1],
                   [1/2, -1],
                   [ -1,  0],
-                  [  0, -1]])
+                  [  0, -1]], dtype=float)
 
     b1 = 1
     b2 = 2
     b3 = 3
 
     # 0.8333333333333333
-    b = np.array([b1, b2, b3, 0, 0])
+    b = np.array([b1, b2, b3, 0, 0], dtype=float)
 
     print(lass_vol(A, b))
+
+    print(lassere_vol(5, 2, A, b))
 
     print('-' * 30)
 
