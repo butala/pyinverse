@@ -20,12 +20,22 @@
 #or it cannot handle fractions for now, still working on the script and other methods.
 
 
+import sys
+import platform
 from fractions import Fraction
+from pathlib import Path
 from ctypes import c_double, c_size_t
 
 import numpy as np
 
-liblassere = np.ctypeslib.load_library('lassere', '/Users/butala/src/pyinverse/build/lib.macosx-13-x86_64-cpython-311')
+import pyinverse
+
+
+# This will not work on windows but may work on linux
+LASSERE_LIB_NAME = f'lassere.{sys.implementation.name}-{sys.version_info.major}{sys.version_info.minor}-{platform.system().lower()}.so'
+LASSERE_LIB_FULLPATH = Path(pyinverse.__file__).parent.parent
+
+liblassere = np.ctypeslib.load_library(LASSERE_LIB_NAME, LASSERE_LIB_FULLPATH)
 
 lassere_vol = liblassere.lassere_vol
 lassere_vol.restype = c_double
