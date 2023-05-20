@@ -349,14 +349,16 @@ if __name__ == '__main__':
     # 0
     print(lass_vol(A, b))
     print(volume_cal(10, 3, A, b))
+    print(lassere_vol(10, 3, A, b))
     print('-' * 30)
 
-    A = np.array([[1, 1]])
-    b = np.array([1])
+    A = np.array([[1, 1]], dtype=float)
+    b = np.array([1], dtype=float)
 
     # inf
     print(lass_vol(A, b))
-    #print(volume_cal(1, 2, A, b))
+    print(lassere_vol(1, 2, A, b))
+    # print(volume_cal(1, 2, A, b)) --- FAILURE CASE!
 
     print('-' * 30)
 
@@ -367,4 +369,5 @@ if __name__ == '__main__':
     b = np.array([-0.50402157,  0.71513002])
 
     print(lass_vol(A, b))
-    # print(volume_cal(2, 2, A, b))
+    print(lassere_vol(2, 2, A, b))
+    # print(volume_cal(2, 2, A, b)) --- FAILURE CASE!
