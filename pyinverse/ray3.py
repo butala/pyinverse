@@ -316,7 +316,7 @@ def main(argv=None):
                                   (args.zlim[0], args.zlim[1], Nz))
 
     grid_uv = RegularGrid.linspace((args.ulim[0], args.ulim[1], Nu),
-                                   (args.vlim[0], args.vlim[1], Nz))
+                                   (args.vlim[0], args.vlim[1], Nv))
 
     H = ray_matrix(theta_deg, phi_deg, axes3, grid_uv, n_cpu=args.n_cpu)
 
