@@ -69,6 +69,25 @@ def first_nonzero_column(A, i):
     raise AllZeroRow()
 
 
+def normalize_constraints(A, b):
+    """
+    Normalize (scale to set first nonzero column to 1) and remove all 0 rows.
+    """
+    M, N = A.shape
+
+    A_out = []
+    b_out = []
+
+    for i in range(M):
+        try:
+            j = first_nonzero_column(A, i)
+        except AllZeroRow:
+            continue
+        A_out.append(A[i, :] / abs(A[i, j]))
+        b_out.append(b[i] / abs(A[i, j]))
+    return np.atleast_2d(np.array(A_out)), np.array(b_out)
+
+
 def filter_parallel_constraints(A, b):
     """
     """
@@ -135,6 +154,7 @@ def lass_vol(A, b):
                 vol = max(0, np.min(b[I_positive] / A.flat[I_positive]) - np.max(b[I_negative] / A.flat[I_negative]))
             return vol
 
+        A, b = normalize_constraints(A, b)
         A, b = filter_parallel_constraints(A, b)
 
         M, N = A.shape
@@ -168,7 +188,10 @@ def lass_vol(A, b):
                 b_tilde[k_prime] = b[k] - A[k, j] / A[i, j] * b[i]
                 k_prime += 1
 
-            vol += b[i] / abs(A[i, j]) * lass_vol_recursion(A_tilde, b_tilde)
+            try:
+                vol += b[i] / abs(A[i, j]) * lass_vol_recursion(A_tilde, b_tilde)
+            except EmptyHalfspaceException:
+                continue
         return vol / N
 
     try:
@@ -224,7 +247,6 @@ def volume_cal(m,d,A,b):
                 A_temp = A_t[c]+A_t[i]
                 if min(A_temp)==0 and max(A_temp)==0 and b_t[c]*-1>b_t[i] and (min(A_t[c])!=0 or max(A_t[c])!=0) and (min(A_t[i])!=0 or max(A_t[i])!=0):
                     return 0
-                    break
 
                 if min(A_me[c])==0 and max(A_me[c])==0 and (b_t[c]<b_t[i] or (b_t[c]==b_t[i] and c<i)):
                     exist_smaller = 1
@@ -312,22 +334,163 @@ def read_hyperplanes(filename):
 
 
 if __name__ == '__main__':
-    A = np.array([[ -1,  1],
-                  [  2,  1],
-                  [1/2, -1],
-                  [ -1,  0],
-                  [  0, -1]], dtype=float)
+    # A = np.array([[ -1,  1],
+    #               [  2,  1],
+    #               [1/2, -1],
+    #               [ -1,  0],
+    #               [  0, -1]], dtype=float)
 
-    b1 = 1
-    b2 = 2
-    b3 = 3
+    # b1 = 1
+    # b2 = 2
+    # b3 = 3
 
-    # 0.8333333333333333
-    b = np.array([b1, b2, b3, 0, 0], dtype=float)
+    # # 0.8333333333333333
+    # b = np.array([b1, b2, b3, 0, 0], dtype=float)
 
-    print(lass_vol(A, b))
+    # print(lass_vol(A, b))
 
-    print(lassere_vol(5, 2, A, b))
+    # print(lassere_vol(5, 2, A, b))
+
+    # print('-' * 30)
+
+    # A = np.array([[-1.        ,  0.        ,  0.        ],
+    #               [ 1.        ,  0.        ,  0.        ],
+    #               [ 0.        , -1.        ,  0.        ],
+    #               [ 0.        ,  1.        ,  0.        ],
+    #               [ 0.        ,  0.        , -1.        ],
+    #               [ 0.        ,  0.        ,  1.        ],
+    #               [-0.92387953,  0.38268343,  0.        ],
+    #               [ 0.92387953, -0.38268343,  0.        ],
+    #               [-0.33141357, -0.80010315, -0.5       ],
+    #               [ 0.33141357,  0.80010315,  0.5       ]])
+
+    # b = np.array([ 4.00000000e-01,  2.22044605e-16,  2.85714286e-01,  0.00000000e+00,
+    #               -7.50000000e-01,  1.25000000e+00,  8.00000000e-01, -4.00000000e-01,
+    #               -2.50000000e-01,  7.50000000e-01])
+
+    # # 0
+    # print(lass_vol(A, b))
+    # print(volume_cal(10, 3, A, b))
+    # print(lassere_vol(10, 3, A, b))
+    # print('-' * 30)
+
+    # A = np.array([[1, 1]], dtype=float)
+    # b = np.array([1], dtype=float)
+
+    # # inf
+    # print(lass_vol(A, b))
+    # print(lassere_vol(1, 2, A, b))
+    # # print(volume_cal(1, 2, A, b)) --- FAILURE CASE!
+
+    # print('-' * 30)
+
+    # # inf
+    # A = np.array([[-0.13695936, -1.5532242],
+    #               [ 1.11813139, -0.64901562]])
+
+    # b = np.array([-0.50402157,  0.71513002])
+
+    # print(lass_vol(A, b))
+    # print(lassere_vol(2, 2, A, b))
+    # # print(volume_cal(2, 2, A, b)) --- FAILURE CASE!
+
+    # A = np.array([[ 0.        ,  0.        ],
+    #               [-1.        ,  0.        ],
+    #               [ 1.        ,  0.        ],
+    #               [ 0.        , -1.        ],
+    #               [ 0.        ,  1.        ],
+    #               [ 0.17364818,  0.        ],
+    #               [-0.17364818,  0.        ],
+    #               [-0.17101007, -0.98480775],
+    #               [ 0.17101007,  0.98480775]])
+
+    # b = np.array([ 2.22222222,  1.11111111,  1.11111111,  1.11111111,  1.11111111,
+    #                2.42756416, -1.7608975 ,  1.36683743, -0.70017077])
+
+    # A = np.array([[  0.        ,   0.        ],
+    #               [ -1.        ,   0.        ],
+    #               [  1.        ,   0.        ],
+    #               [  0.        ,  -1.        ],
+    #               [  0.        ,   1.        ],
+    #               [  0.17632698,   0.        ],
+    #               [ -0.17632698,   0.        ],
+    #               [ -5.67128169, -32.65960982],
+    #               [  5.67128169,  32.65960982]])
+
+    # b = np.array([  2.22222222,   1.11111111,   1.11111111,   1.11111111,
+    #                 1.11111111,   0.24279104,   0.43416003,  43.10680484,
+    #                 -20.99784703])
+
+    # A = np.array([[ -1.        ,   0.        ],
+    #               [  1.        ,   0.        ],
+    #               [  0.        ,  -1.        ],
+    #               [  0.        ,   1.        ],
+    #               [ -5.67128169, -32.65960982],
+    #               [  5.67128169,  32.65960982]])
+
+    # b = np.array([  0.43416003,   0.24279104,   1.11111111,   1.11111111,
+    #                 43.10680484, -20.99784703])
+
+    # THIS CASE IS (I BELIEVE) EQUIVALENT TO THE ABOVE!
+    # A = np.array([[ 0.        ,  0.        ],
+    #               [-1.        ,  0.        ],
+    #               [ 1.        ,  0.        ],
+    #               [ 0.        , -1.        ],
+    #               [ 0.        ,  1.        ],
+    #               [-1.        , -5.75877052],
+    #               [ 1.        ,  5.75877052],
+    #               [ 0.        ,  0.        ],
+    #               [ 0.        ,  0.        ]])
+
+    # b = np.array([ 2.22222222,  1.11111111,  1.11111111,  1.11111111,  1.11111111,
+    #                7.60089292, -3.70248705,  0.        ,  0.        ])
+
+    # A = np.array([[-1.        ,  0.        ],
+    #               [ 1.        ,  0.        ],
+    #               [ 0.        , -1.        ],
+    #               [ 0.        ,  1.        ],
+    #               [-1.        , -5.75877052],
+    #               [ 1.        ,  5.75877052]])
+
+    # b = np.array([ 1.11111111,  1.11111111,  1.11111111,  1.11111111,
+    #                7.60089292, -3.70248705])
+
+    A = np.array([[-1.        ,  0.        ,  0.        ],
+                  [ 1.        ,  0.        ,  0.        ],
+                  [ 0.        , -1.        ,  0.        ],
+                  [ 0.        ,  1.        ,  0.        ],
+                  [ 0.        ,  0.        , -1.        ],
+                  [ 0.        ,  0.        ,  1.        ],
+                  [-0.98480775,  0.17364818,  0.        ],
+                  [ 0.98480775, -0.17364818,  0.        ],
+                  [-0.03015369, -0.17101007, -0.98480775],
+                  [ 0.03015369,  0.17101007,  0.98480775]])
+
+    b = np.array([ 1.11111111,  1.11111111,  1.11111111,  1.11111111,  1.11111111,
+                   1.11111111,  1.33333333, -0.66666667,  1.33333333, -0.66666667])
+
+
+    # A = np.array([[ -1.        ,   0.        ],
+    #               [  1.        ,   0.        ],
+    #               [  0.        ,  -1.        ],
+    #               [  0.        ,   1.        ],
+    #               [  0.17632698,   0.        ],
+    #               [ -0.17632698,   0.        ],
+    #               [ -5.67128169, -32.65960982],
+    #               [  5.67128169,  32.65960982]])
+
+    # b = np.array([  1.11111111,   1.11111111,   1.11111111,   1.11111111,
+    #                 2.46501326,  -1.78806219,  45.32902706, -23.22006925])
+
+    M, N = A.shape
+
+    vol1 = volume_cal(M, N, A, b)
+    vol2 = lass_vol(A, b)
+
+    print('!!!', vol1)
+    print('!!!', vol2)
+
+    print(np.allclose(vol1, vol2))
 
     print('-' * 30)
 
@@ -337,37 +500,13 @@ if __name__ == '__main__':
                   [ 0.        ,  1.        ,  0.        ],
                   [ 0.        ,  0.        , -1.        ],
                   [ 0.        ,  0.        ,  1.        ],
-                  [-0.92387953,  0.38268343,  0.        ],
-                  [ 0.92387953, -0.38268343,  0.        ],
-                  [-0.33141357, -0.80010315, -0.5       ],
-                  [ 0.33141357,  0.80010315,  0.5       ]])
+                  [-0.98480775,  0.17364818,  0.        ],
+                  [ 0.98480775, -0.17364818,  0.        ],
+                  [-0.03015369, -0.17101007, -0.98480775],
+                  [ 0.03015369,  0.17101007,  0.98480775]])
 
-    b = np.array([ 4.00000000e-01,  2.22044605e-16,  2.85714286e-01,  0.00000000e+00,
-                  -7.50000000e-01,  1.25000000e+00,  8.00000000e-01, -4.00000000e-01,
-                  -2.50000000e-01,  7.50000000e-01])
+    b = np.array([ 1.11111111,  1.11111111,  1.11111111,  1.11111111,  1.11111111,
+                   1.11111111,  1.33333333, -0.66666667,  1.33333333, -0.66666667])
 
-    # 0
-    print(lass_vol(A, b))
     print(volume_cal(10, 3, A, b))
-    print(lassere_vol(10, 3, A, b))
-    print('-' * 30)
-
-    A = np.array([[1, 1]], dtype=float)
-    b = np.array([1], dtype=float)
-
-    # inf
     print(lass_vol(A, b))
-    print(lassere_vol(1, 2, A, b))
-    # print(volume_cal(1, 2, A, b)) --- FAILURE CASE!
-
-    print('-' * 30)
-
-    # inf
-    A = np.array([[-0.13695936, -1.5532242],
-                  [ 1.11813139, -0.64901562]])
-
-    b = np.array([-0.50402157,  0.71513002])
-
-    print(lass_vol(A, b))
-    print(lassere_vol(2, 2, A, b))
-    # print(volume_cal(2, 2, A, b)) --- FAILURE CASE!
