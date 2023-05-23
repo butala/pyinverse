@@ -4,6 +4,7 @@
 #include <math.h>
 #include <assert.h>
 #include <stdbool.h>
+#include <string.h>
 
 #include "lassere.h"
 #include "util.h"
@@ -39,6 +40,32 @@ static double lassere_vol_base_case(size_t M, double *A, double *b) {
 }
 
 
+static void normalize_constraints(size_t M, size_t N, double *A, double *b) {
+    size_t i, j, k;
+    bool j_found;
+    double scale_factor;
+
+    for (i = 0; i < M; i++) {
+        j_found = false;
+        for (j = 0; j < N; j++) {
+            if (!fequal(A[i*N + j], 0)) {
+                j_found = true;
+                break;
+            }
+        }
+        if (!j_found) {
+            continue;
+        }
+
+        scale_factor = fabs(A[i*N + j]);
+        for (k = 0; k < N; k++) {
+            A[i*N + k] /= scale_factor;
+        }
+        b[i] /= scale_factor;
+    }
+}
+
+
 static bool filter_parallel_constraints(size_t *M, size_t N, double *A, double *b) {
     bool *parallel_halfspaces;
     size_t i, j, k;
@@ -67,7 +94,7 @@ static bool filter_parallel_constraints(size_t *M, size_t N, double *A, double *
         smallest_b[i] = NAN;
 
         j_found = false;
-        for (j=0; j < N; j++) {
+        for (j = 0; j < N; j++) {
             if (!fequal(A[i*N + j], 0)) {
                 j_found = true;
                 break;
@@ -146,6 +173,8 @@ static double lassere_vol_helper(size_t *M, size_t N, double *A, double *b) {
         return lassere_vol_base_case(*M, A, b);
     }
 
+    normalize_constraints(*M, N, A, b);
+
     if (!filter_parallel_constraints(M, N, A, b)) {
         return NAN;
     }
@@ -167,7 +196,7 @@ static double lassere_vol_helper(size_t *M, size_t N, double *A, double *b) {
         }
 
         j_found = false;
-        for (j=0; j < N; j++) {
+        for (j = 0; j < N; j++) {
             if (!fequal(A[i*N + j], 0)) {
                 j_found = true;
                 break;
@@ -200,8 +229,7 @@ static double lassere_vol_helper(size_t *M, size_t N, double *A, double *b) {
             break;
         }
         else if (isnan(vol_i)) {
-            vol = 0;
-            break;
+            continue;
         }
         vol += b[i] / fabs(A[i*N + j]) * vol_i;
     }
@@ -214,7 +242,24 @@ static double lassere_vol_helper(size_t *M, size_t N, double *A, double *b) {
 
 
 double lassere_vol(size_t M, size_t N, double *A, double *b) {
-    size_t M_wrap = M;
+    size_t M_copy = M;
+    double *A_copy;
+    double *b_copy;
+    double vol;
 
-    return lassere_vol_helper(&M_wrap, N, A, b);
+    A_copy = malloc(M * N * sizeof(double));
+    assert(A_copy);
+
+    b_copy = malloc(M * sizeof(double));
+    assert(b_copy);
+
+    memcpy(A_copy, sizeof(double), M*N);
+    memcpy(b_copy, sizeof(double), M);
+
+    vol = lassere_vol_helper(&M_copy, N, A, b);
+
+    free(A_copy);
+    free(b_copy);
+
+    return vol;
 }
