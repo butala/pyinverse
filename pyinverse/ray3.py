@@ -13,7 +13,7 @@ from tqdm import tqdm
 
 from .grid import RegularGrid
 from .axes import RegularAxes3
-from .volume import volume_cal
+from .volume import volume_cal, lassere_vol
 
 
 def regular_axes2polytope(axes3, ijk):
@@ -129,7 +129,7 @@ def beam2actor(grid, ij, e_min_max, theta, phi, color='Peru', alpha=0.2, deg=Fal
     return actor
 
 
-def ray_row(A_mn, b_mn, u_T, v_T, axes3):
+def ray_row(A_mn, b_mn, u_T, v_T, axes3, _fast_vol=True):
     """
     Divide and conquer approach to calculate the volume
     intersections of the parallel beam determined by the *A_mn* x <=
@@ -153,7 +153,10 @@ def ray_row(A_mn, b_mn, u_T, v_T, axes3):
         A_lass = np.vstack((A_ijk, A_mn))
         b_lass = np.hstack((b_ijk, b_mn))
 
-        vol = volume_cal(10, 3, A_lass, b_lass) / (u_T * v_T)
+        if _fast_vol:
+            vol = lassere_vol(10, 3, A_lass, b_lass) / (u_T * v_T)
+        else:
+            vol = volume_cal(10, 3, A_lass, b_lass) / (u_T * v_T)
 
         if np.allclose(vol, 0):
             return
