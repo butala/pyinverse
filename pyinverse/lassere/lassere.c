@@ -257,6 +257,9 @@ double lassere_vol(size_t M, size_t N, double *A, double *b) {
     memcpy(b_copy, sizeof(double), M);
 
     vol = lassere_vol_helper(&M_copy, N, A, b);
+    if (isnan(vol)) {
+        return 0;
+    }
 
     free(A_copy);
     free(b_copy);
