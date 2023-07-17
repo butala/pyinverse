@@ -192,6 +192,7 @@ def lass_vol(A, b):
                 vol += b[i] / abs(A[i, j]) * lass_vol_recursion(A_tilde, b_tilde)
             except EmptyHalfspaceException:
                 continue
+        assert vol >= 0
         return vol / N
 
     try:
