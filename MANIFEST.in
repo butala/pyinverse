@@ -1,1 +1,1 @@
-include pyinverse/lassere/*.h
+include pyinverse/lasserre/*.h

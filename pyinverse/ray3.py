@@ -13,7 +13,7 @@ from tqdm import tqdm
 
 from .grid import RegularGrid
 from .axes import RegularAxes3
-from .volume import volume_cal, lassere_vol
+from .volume import volume_cal, lasserre_vol
 
 
 def regular_axes2polytope(axes3, ijk):
@@ -154,7 +154,7 @@ def ray_row(A_mn, b_mn, u_T, v_T, axes3, _fast_vol=True):
         b_lass = np.hstack((b_ijk, b_mn))
 
         if _fast_vol:
-            vol = lassere_vol(10, 3, A_lass, b_lass) / (u_T * v_T)
+            vol = lasserre_vol(10, 3, A_lass, b_lass) / (u_T * v_T)
         else:
             vol = volume_cal(10, 3, A_lass, b_lass) / (u_T * v_T)
 

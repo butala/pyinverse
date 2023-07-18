@@ -6,11 +6,11 @@
 #include <stdbool.h>
 #include <string.h>
 
-#include "lassere.h"
+#include "lasserre.h"
 #include "util.h"
 
 
-static double lassere_vol_base_case(size_t M, double *A, double *b) {
+static double lasserre_vol_base_case(size_t M, double *A, double *b) {
     double min_val =  DBL_MAX;
     double max_val = -DBL_MAX;
     size_t i;
@@ -158,7 +158,7 @@ static bool filter_parallel_constraints(size_t *M, size_t N, double *A, double *
 }
 
 
-static double lassere_vol_helper(size_t *M, size_t N, double *A, double *b) {
+static double lasserre_vol_helper(size_t *M, size_t N, double *A, double *b) {
     double vol, vol_i;
     size_t i, j, k, k_prime, l, l_prime, M_tilde, N_tilde;
     double *A_tilde = NULL;
@@ -170,7 +170,7 @@ static double lassere_vol_helper(size_t *M, size_t N, double *A, double *b) {
     }
 
     if (N == 1) {
-        return lassere_vol_base_case(*M, A, b);
+        return lasserre_vol_base_case(*M, A, b);
     }
 
     normalize_constraints(*M, N, A, b);
@@ -223,7 +223,7 @@ static double lassere_vol_helper(size_t *M, size_t N, double *A, double *b) {
             b_tilde[k_prime] = b[k] - A[k*N + j] / A[i*N + j] * b[i];
             k_prime++;
         }
-        vol_i = lassere_vol(M_tilde, N_tilde, A_tilde, b_tilde);
+        vol_i = lasserre_vol(M_tilde, N_tilde, A_tilde, b_tilde);
         if (isinf(vol_i)) {
             vol = INFINITY;
             break;
@@ -241,7 +241,7 @@ static double lassere_vol_helper(size_t *M, size_t N, double *A, double *b) {
 }
 
 
-double lassere_vol(size_t M, size_t N, double *A, double *b) {
+double lasserre_vol(size_t M, size_t N, double *A, double *b) {
     size_t M_copy = M;
     double *A_copy;
     double *b_copy;
@@ -256,7 +256,7 @@ double lassere_vol(size_t M, size_t N, double *A, double *b) {
     memcpy(A_copy, sizeof(double), M*N);
     memcpy(b_copy, sizeof(double), M);
 
-    vol = lassere_vol_helper(&M_copy, N, A, b);
+    vol = lasserre_vol_helper(&M_copy, N, A, b);
     if (isnan(vol)) {
         return 0;
     }

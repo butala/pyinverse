@@ -32,21 +32,21 @@ import pyinverse
 
 
 # This will not work on windows but may work on linux
-LASSERE_LIB_NAME = f'lassere.{sys.implementation.name}-{sys.version_info.major}{sys.version_info.minor}-{platform.system().lower()}.so'
-LASSERE_LIB_FULLPATH = Path(pyinverse.__file__).parent.parent
+LASSERRE_LIB_NAME = f'lasserre.{sys.implementation.name}-{sys.version_info.major}{sys.version_info.minor}-{platform.system().lower()}.so'
+LASSERRE_LIB_FULLPATH = Path(pyinverse.__file__).parent.parent
 
-liblassere = np.ctypeslib.load_library(LASSERE_LIB_NAME, LASSERE_LIB_FULLPATH)
+liblasserre = np.ctypeslib.load_library(LASSERRE_LIB_NAME, LASSERRE_LIB_FULLPATH)
 
-lassere_vol = liblassere.lassere_vol
-lassere_vol.restype = c_double
-lassere_vol.argtypes = [c_size_t,
-                        c_size_t,
-                        np.ctypeslib.ndpointer(dtype=c_double,
-                                               ndim=2,
-                                               flags='C'),
-                        np.ctypeslib.ndpointer(dtype=c_double,
-                                               ndim=1,
-                                               flags='C')]
+lasserre_vol = liblasserre.lasserre_vol
+lasserre_vol.restype = c_double
+lasserre_vol.argtypes = [c_size_t,
+                         c_size_t,
+                         np.ctypeslib.ndpointer(dtype=c_double,
+                                                ndim=2,
+                                                flags='C'),
+                         np.ctypeslib.ndpointer(dtype=c_double,
+                                                ndim=1,
+                                                flags='C')]
 
 class EmptyHalfspaceException(Exception):
     pass
@@ -350,7 +350,7 @@ if __name__ == '__main__':
 
     # print(lass_vol(A, b))
 
-    # print(lassere_vol(5, 2, A, b))
+    # print(lasserre_vol(5, 2, A, b))
 
     # print('-' * 30)
 
@@ -372,7 +372,7 @@ if __name__ == '__main__':
     # # 0
     # print(lass_vol(A, b))
     # print(volume_cal(10, 3, A, b))
-    # print(lassere_vol(10, 3, A, b))
+    # print(lasserre_vol(10, 3, A, b))
     # print('-' * 30)
 
     # A = np.array([[1, 1]], dtype=float)
@@ -380,7 +380,7 @@ if __name__ == '__main__':
 
     # # inf
     # print(lass_vol(A, b))
-    # print(lassere_vol(1, 2, A, b))
+    # print(lasserre_vol(1, 2, A, b))
     # # print(volume_cal(1, 2, A, b)) --- FAILURE CASE!
 
     # print('-' * 30)
@@ -392,7 +392,7 @@ if __name__ == '__main__':
     # b = np.array([-0.50402157,  0.71513002])
 
     # print(lass_vol(A, b))
-    # print(lassere_vol(2, 2, A, b))
+    # print(lasserre_vol(2, 2, A, b))
     # # print(volume_cal(2, 2, A, b)) --- FAILURE CASE!
 
     # A = np.array([[ 0.        ,  0.        ],
