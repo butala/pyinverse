@@ -79,7 +79,7 @@ def grid_uv2half_planes(theta, phi, grid_uv, mn, degrees=False):
                    grid_uv.axis_y.borders[m+1],
                   -grid_uv.axis_x.borders[n],
                    grid_uv.axis_x.borders[n+1]])
-    rot = sp.spatial.transform.Rotation.from_euler('XZ', [phi, theta], degrees=degrees)
+    rot = sp.spatial.transform.Rotation.from_euler('ZX', [theta, phi], degrees=degrees)
     return rot.apply(A, inverse=True), b
 
 
