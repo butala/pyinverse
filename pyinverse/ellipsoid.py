@@ -29,7 +29,7 @@ def ellipsoid_proj(ellipsoid, theta, phi, grid, deg=False, Y=None):
     In the table below, the unit vector e is parallel to the line
     integrals (so the sign does not matter from the viewpoint of the
     integration) and normal to the projection plane. The vectors e1
-    and e2 specify the projection plan coordinates.
+    and e2 specify the projection plane coordinates.
 
     |-------+------+-----+-----+-----|
     | theta |  phi |   e |  e1 |  e2 |
@@ -38,7 +38,7 @@ def ellipsoid_proj(ellipsoid, theta, phi, grid, deg=False, Y=None):
     |     0 | pi/2 |  -x |   y |   z |
     |     0 |   pi |  -y |  -x |   z |
     |  pi/2 |    0 |   z |   x |  -y |
-    |  pi/2 |    0 |  -z |   x |   y |
+    | -pi/2 |    0 |  -z |   x |   y |
     |  pi/2 | pi/2 |   z |   y |   x |
     |-------+------+-----+-----+-----|
     """
