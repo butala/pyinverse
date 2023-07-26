@@ -4,6 +4,8 @@ import numpy as np
 import scipy
 import vtk
 
+from pyinverse.angle import Angle
+
 
 """
 Take a look here:
@@ -12,7 +14,7 @@ X-ray transform and 3D Radon transform for ellipsoids and tetrahedra
 """
 
 
-def ellipsoid_proj(ellipsoid, theta, phi, grid, deg=False, Y=None):
+def ellipsoid_proj(ellipsoid, theta, phi, grid, Y=None):
     """
     Return the X-ray transform of *ellipsoid* at the azimuthal
     angle *phi* (ranging from -pi to pi, though negative angles are
@@ -42,30 +44,20 @@ def ellipsoid_proj(ellipsoid, theta, phi, grid, deg=False, Y=None):
     |  pi/2 | pi/2 |   z |   y |   x |
     |-------+------+-----+-----+-----|
     """
-    if deg:
-        theta_rad = np.radians(theta)
-        phi_rad = np.radians(phi)
-    else:
-        theta_rad = theta
-        phi_rad = phi
     if Y is None:
         Y = np.zeros((grid.shape))
-    cos_theta = np.cos(theta_rad)
-    sin_theta = np.sin(theta_rad)
-    cos_phi = np.cos(phi_rad)
-    sin_phi = np.sin(phi_rad)
     # Problem 4.15 from Fessler's notes
-    e_vec0 = np.array([-sin_phi * cos_theta,
-                        cos_phi * cos_theta,
-                        sin_theta])
+    e_vec0 = np.array([-phi.sin * theta.cos,
+                        phi.cos * theta.cos,
+                        theta.sin])
 
-    e1_vec0 = np.array([cos_phi,
-                        sin_phi,
+    e1_vec0 = np.array([phi.cos,
+                        phi.sin,
                         0])
 
-    e2_vec0 = np.array([ sin_phi * sin_theta,
-                        -cos_phi * sin_theta,
-                         cos_theta])
+    e2_vec0 = np.array([ phi.sin * theta.sin,
+                        -phi.cos * theta.sin,
+                         theta.cos])
 
     # rotation property
     e_vec = ellipsoid.R_matrix.T @ e_vec0
@@ -135,29 +127,24 @@ class Ellipsoid:
     y0: float
     z0: float
 
-    alpha_deg: float
-    beta_deg: float
-    gamma_deg: float
+    alpha: Angle
+    beta: Angle
+    gamma: Angle
 
     rho: float
 
 
-    def __post_init__(self):
-        self.alpha_rad = np.radians(self.alpha_deg)
-        self.beta_rad = np.radians(self.beta_deg)
-        self.gamme_rad = np.radians(self.gamma_deg)
-
     @property
     def R_matrix(self):
         """
-        Return the rotation matrix corresponding to the Z-X-Z Euler
-        angle parameters alpha_deg, beta_deg, and gamma_deg.
+        Return the rotation matrix corresponding to the Z-X-Z
+        Euler angle parameters alpha, beta, and gamma.
         """
         try:
             return self._R_matrix
         except AttributeError:
             self._R_matrix = scipy.spatial.transform.Rotation.from_euler('ZXZ',
-                                                                         [self.alpha_deg, self.beta_deg, self.gamma_deg],
+                                                                         [self.alpha.deg, self.beta.deg, self.gamma.deg],
                                                                          degrees=True).as_matrix()
             return self.R_matrix
 
@@ -203,19 +190,20 @@ class Ellipsoid:
         actor = vtk.vtkActor()
         actor.SetMapper(mapper)
         # apply standard (Z-X-Z) Euler angle rotation
-        actor.RotateZ(self.alpha_deg)
-        actor.RotateX(self.beta_deg)
-        actor.RotateZ(self.gamma_deg)
+
+        actor.RotateZ(self.alpha.deg)
+        actor.RotateX(self.beta.deg)
+        actor.RotateZ(self.gamma.deg)
         actor.SetPosition(self.x0, self.y0, self.z0)
         return actor
 
 
-    def proj(self, theta, phi, grid, deg=False, Y=None):
+    def proj(self, theta, phi, grid, Y=None):
         """
         Return the projection of the ellipsoid. See the detailed
         documentation in :func:`ellipsoid_proj`.
         """
-        return ellipsoid_proj(self, theta, phi, grid, deg=deg, Y=Y)
+        return ellipsoid_proj(self, theta, phi, grid, Y=Y)
 
 
     def fourier_transform(self, fx, fy, fz):
@@ -229,7 +217,10 @@ if __name__ == '__main__':
     # e = Ellipsoid(0.6900, 0.9200, 0.810, 0, -0.25, 0, 0, 0, 0, 1.0)
     # e = Ellipsoid(0.6900, 0.9200, 0.810, 0, 0, -0.25, 0, 0, 0, 1.0)
     # e = Ellipsoid(10*0.046, 10*0.023, 10*0.02, 5*-0.08, -0.65, -0.25, 0, 0, 0, 0.1)
-    e = Ellipsoid(0.31, 0.11, 0.22, 0.22, 0, -0.25, 72, 0, 0, -0.2)
+
+    e = Ellipsoid(0.31, 0.11, 0.22, 0.22, 0, -0.25,
+                  Angle(deg=72), Angle(deg=0), Angle(deg=0),
+                  -0.2)
 
     from pyviz3d.viz import Renderer
 

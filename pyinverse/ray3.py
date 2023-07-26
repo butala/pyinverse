@@ -11,6 +11,7 @@ import scipy as sp
 import vtk
 from tqdm import tqdm
 
+from .angle import Angle
 from .grid import RegularGrid
 from .axes import RegularAxes3
 from .volume import volume_cal, lasserre_vol
@@ -62,13 +63,12 @@ def regular_axes2polytope2(axes3, i1, i2, j1, j2, k1, k2):
     return A, b
 
 
-def grid_uv2half_planes(theta, phi, grid_uv, mn, degrees=False):
+def grid_uv2half_planes(theta, phi, grid_uv, mn):
     """
     Return the polytope, i.e., A and b in the equation Ax <= b,
     that corresponds to (*mn*)th u-v plane element of *grid_uv*. The
-    angles *theta* and *phi* are the polar angle [-pi/2, pi/2] and
-    azimuth [-pi, pi], respectively, specified in radians unless
-    *degrees* is `True`.
+    :class:`Angle` instances *theta* and *phi* are the polar angle
+    [-pi/2, pi/2] and azimuth [-pi, pi], respectively.
     """
     A = np.array([[-1, 0,  0],
                   [ 1, 0,  0],
@@ -79,30 +79,23 @@ def grid_uv2half_planes(theta, phi, grid_uv, mn, degrees=False):
                    grid_uv.axis_y.borders[m+1],
                   -grid_uv.axis_x.borders[n],
                    grid_uv.axis_x.borders[n+1]])
-    rot = sp.spatial.transform.Rotation.from_euler('ZX', [theta, phi], degrees=degrees)
+    rot = sp.spatial.transform.Rotation.from_euler('ZX', [theta.deg, phi.deg], degrees=True)
     return rot.apply(A, inverse=True), b
 
 
-def beam2actor(grid, ij, e_min_max, theta, phi, color='Peru', alpha=0.2, deg=False):
+def beam2actor(grid, ij, e_min_max, theta, phi, color='Peru', alpha=0.2):
     """
     Return a VTK actor for the beam bounded by the (*ij*)th
     element of the u-v plane interval defined in *grid* where `i`
     corresponds to the vertical (v) dimension and `j` corresponds to
     the horizontal (u) dimension. The length of the beam (depth
     dimension) is specified by the tuple *e_min_max*. The bream is
-    oriented by the angles *theta* and *phi* are the polar angle
-    [-pi/2, pi/2] and azimuth [-pi, pi], respectively, specified in
-    radians unless *degrees* is `True`. Use the web color *color* and
-    opacity *alpha*.
+    oriented by the :class:`Angle` instances *theta* and *phi* are the
+    polar angle [-pi/2, pi/2] and azimuth [-pi, pi]. Use the web color
+    *color* and opacity *alpha*.
     """
     i, j = ij
     emin, emax = e_min_max
-    if deg:
-        theta_deg = theta
-        phi_deg = phi
-    else:
-        theta_deg = np.degrees(theta)
-        phi_deg = np.degrees(phi)
 
     umin = grid.axis_x.borders[j]
     umax = grid.axis_x.borders[j+1]
@@ -123,8 +116,8 @@ def beam2actor(grid, ij, e_min_max, theta, phi, color='Peru', alpha=0.2, deg=Fal
     actor.SetMapper(mapper)
     actor.GetProperty().SetColor(colors.GetColor3d(color))
     actor.GetProperty().SetOpacity(alpha)
-    actor.RotateX(theta_deg)
-    actor.RotateZ(phi_deg)
+    actor.RotateX(theta.deg)
+    actor.RotateZ(phi.deg)
 
     return actor
 
@@ -192,20 +185,20 @@ def ray_row(A_mn, b_mn, u_T, v_T, axes3, _fast_vol=True):
     return sorted_data, sorted_indices
 
 
-def ray_row_mn(theta, phi, axes3, grid_uv, mn, degrees=True):
+def ray_row_mn(theta, phi, axes3, grid_uv, mn):
     """ """
-    A_mn, b_mn = grid_uv2half_planes(theta, phi, grid_uv, mn, degrees=degrees)
+    A_mn, b_mn = grid_uv2half_planes(theta, phi, grid_uv, mn)
     return ray_row(A_mn, b_mn, grid_uv.axis_x.T, grid_uv.axis_y.T, axes3)
 
 
-def ray_matrix(theta, phi, axes3, grid_uv, n_cpu=multiprocessing.cpu_count(), degrees=True):
+def ray_matrix(theta, phi, axes3, grid_uv, n_cpu=multiprocessing.cpu_count()):
     """
     """
     Nv, Nu = grid_uv.shape
 
     ij = product(range(Nv), range(Nu))
 
-    ray_row_helper = partial(ray_row_mn, theta, phi, axes3, grid_uv, degrees=degrees)
+    ray_row_helper = partial(ray_row_mn, theta, phi, axes3, grid_uv)
 
     data = []
     indices = []
@@ -287,14 +280,14 @@ def main(argv=None):
     args = parser.parse_args(argv[1:])
 
     if args.radians:
-        theta_deg = np.degrees(args.theta)
-        phi_deg = np.degrees(args.phi)
+        theta = Angle(rad=args.theta)
+        phi = Angle(rad=args.phi)
     else:
-        theta_deg = args.theta
-        phi_deg = args.phi
+        theta = Angle(deg=args.theta)
+        phi = Angle(deg=args.phi)
 
-    assert -90 <= args.theta <= 90
-    assert -180 <= args.phi <= 180
+    assert -90 <= theta.deg <= 90
+    assert -180 <= phi.deg <= 180
 
     if args.n is not None:
         assert args.n > 0

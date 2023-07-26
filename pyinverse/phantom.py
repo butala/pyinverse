@@ -1,5 +1,6 @@
 import numpy as np
 
+from .angle import Angle
 from .ellipse import Ellipse
 
 
@@ -67,7 +68,8 @@ class Phantom:
                  key='modified-shepp-logan'):
         """
         """
-        self._ellipses = [Ellipse(*row) for row in ellipse_matrix[key]]
+        for row in ellipse_matrix[key]:
+            self._ellipses = [Ellipse(*(list(row[:5]) + [Angle(deg=row[5])])) for row in ellipse_matrix[key]]
 
     def __call__(self, x, y):
         """

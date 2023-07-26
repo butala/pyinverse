@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pylab as plt
 import vtk
 
+from .angle import Angle
 from .ellipsoid import Ellipsoid
 
 
@@ -130,7 +131,7 @@ class Phantom3:
                  key='toft_schabel'):
         """
         """
-        self._ellipsoids = [Ellipsoid(*row) for row in ellipsoid_matrix[key]]
+        self._ellipsoids = [Ellipsoid(*(list(row[:6]) + [Angle(deg=x) for x in row[6:9]] + [row[9]])) for row in ellipsoid_matrix[key]]
 
     def __call__(self, x, y, z):
         return sum([e(x, y, z) for e in self._ellipsoids])
@@ -147,13 +148,13 @@ class Phantom3:
             assembly.AddPart(actor)
         return assembly
 
-    def proj(self, theta, phi, grid, deg=False, Y=None):
+    def proj(self, theta, phi, grid, Y=None):
         """
         """
         if Y is None:
             Y = np.zeros((grid.shape))
         for e in self._ellipsoids:
-            e.proj(theta, phi, grid, deg=deg, Y=Y)
+            e.proj(theta, phi, grid, Y=Y)
         return Y
 
 

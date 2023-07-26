@@ -4,32 +4,34 @@ import math
 import numpy as np
 import scipy.signal
 
+from .angle import Angle
 from .util import robust_arcsin, robust_sqrt, besinc
 from .radon import radon_translate, radon_affine_scale
 
 
-def ellipse_bb(x, y, major, minor, angle_deg):
+def ellipse_bb(x, y, major, minor, angle):
     """
-    Compute tight ellipse bounding box for the ellipse centered at (*x*, *y*), with major and minor axes lengths of *major* and *minor*, and rotated CCW by *angle_deg* (in degrees). Return the tuple `(min_x, min_y, max_x, max_y)`.
+    Compute tight ellipse bounding box for the ellipse centered at
+    (*x*, *y*), with major and minor axes lengths of *major* and
+    *minor*, and rotated CCW by :class:`Angle` *angle*. Return the
+    tuple `(min_x, min_y, max_x, max_y)`.
 
     Adapted from the following code: https://gist.github.com/smidm/b398312a13f60c24449a2c7533877dc0
 
     The above code was written in response to a question: https://stackoverflow.com/questions/87734/how-do-you-calculate-the-axis-aligned-bounding-box-of-an-ellipse#88020
     """
-    angle_deg %= 360
-    angle_rad = np.radians(angle_deg)
-    if angle_deg == 0:
+    if angle.deg == 0:
         t = 0
     else:
-        t = np.arctan(-minor * np.tan(angle_rad) / major)
-    [max_x, min_x] = [x + major * np.cos(t) * np.cos(angle_rad) -
-                      minor * np.sin(t) * np.sin(angle_rad) for t in (t, t + np.pi)]
-    if angle_deg == 0:
+        t = np.arctan(-minor * angle.tan / major)
+    [max_x, min_x] = [x + major * np.cos(t) * angle.cos -
+                      minor * np.sin(t) * angle.sin for t in (t, t + np.pi)]
+    if angle.deg == 0:
         t = np.pi / 2
     else:
-        t = np.arctan(minor * 1. / np.tan(angle_rad) / major)
-    [max_y, min_y] = [y + minor * np.sin(t) * np.cos(angle_rad) +
-                      major * np.cos(t) * np.sin(angle_rad) for t in (t, t + np.pi)]
+        t = np.arctan(minor * 1. / angle.tan / major)
+    [max_y, min_y] = [y + minor * np.sin(t) * angle.cos +
+                      major * np.cos(t) * angle.sin for t in (t, t + np.pi)]
     min_x, max_x = sorted([min_x, max_x])
     min_y, max_y = sorted([min_y, max_y])
     return min_x, min_y, max_x, max_y
@@ -61,8 +63,8 @@ def ellipse_ft(ellipse, fx, fy):
     vertical frequencies *fx* and *fy* (given in Hz).
 
     """
-    fx_rot = fx * ellipse.cos_phi + fy * ellipse.sin_phi
-    fy_rot = fy * ellipse.cos_phi - fx * ellipse.sin_phi
+    fx_rot = fx * ellipse.phi.cos + fy * ellipse.phi.sin
+    fy_rot = fy * ellipse.phi.cos - fx * ellipse.phi.sin
 
     D = np.sqrt((ellipse.a * fx_rot)**2 + (ellipse.b * fy_rot)**2)
 
@@ -95,7 +97,7 @@ def ellipse_proj(ellipse, sinogram_grid, Y=None):
     if Y is None:
         Y = np.zeros((sinogram_grid.shape))
     for k, theta_k in enumerate(np.radians(sinogram_grid.axis_x)):
-        theta_prime = theta_k - ellipse.phi_rad
+        theta_prime = theta_k - ellipse.phi.rad
         t_prime = radon_translate(theta_k, sinogram_grid.axis_y.centers, ellipse.x0, ellipse.y0)
         theta_prime2, t_prime2, scale_factor = radon_affine_scale(theta_prime, t_prime, 1/ellipse.a, 1/ellipse.b)
         Y[:, k] += ellipse.rho * proj_disk(t_prime2) * scale_factor
@@ -251,21 +253,18 @@ class Ellipse:
     b: float        # Length of the vertical semiaxis of the ellipse
     x0: float       # x-coordinate of the center of the ellipse
     y0: float       # y-coordinate of the center of the ellipse
-    phi_deg: float  # Angle (in degrees) between the horizontal semiaxis of the ellipse and the x-axis of the image
+    phi: Angle      # Angle between the horizontal semiaxis of the ellipse and the x-axis of the image
 
     """
     The notes on [length] and [mass] below concern the Shepp-Logan phantom.
     - A has units of density [mass] / [length]^2
     - a, b, x0, and y0 are given in the unit of [length], but in the relative sense (not in the absolute sense of, e.g., m)
-    - phi_deg is in degrees
+    - phi is an Angle (can be degrees or radians)
     """
 
     def __post_init__(self):
         self.a_sq = self.a**2
         self.b_sq = self.b**2
-        self.phi_rad = np.radians(self.phi_deg)
-        self.cos_phi = np.cos(self.phi_rad)
-        self.sin_phi = np.sin(self.phi_rad)
 
     @property
     def bounds(self):
@@ -276,7 +275,7 @@ class Ellipse:
         try:
             return self._bounds
         except AttributeError:
-            self._bounds = ellipse_bb(self.x0, self.y0, self.a, self.b, self.phi_deg)
+            self._bounds = ellipse_bb(self.x0, self.y0, self.a, self.b, self.phi)
             return self.bounds
 
     def __call__(self, x, y):
@@ -287,7 +286,7 @@ class Ellipse:
         """
         x_prime = x - self.x0
         y_prime = y - self.y0
-        return ((x_prime*self.cos_phi + y_prime*self.sin_phi)**2 / self.a_sq + (y_prime*self.cos_phi - x_prime*self.sin_phi)**2 / self.b_sq <= 1) * self.rho
+        return ((x_prime*self.phi.cos + y_prime*self.phi.sin)**2 / self.a_sq + (y_prime*self.phi.cos - x_prime*self.phi.sin)**2 / self.b_sq <= 1) * self.rho
 
     def raster(self, regular_grid, doall=False, A=None, N=20):
         """Return an image rasterization of the ellipse. (see
