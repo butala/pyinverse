@@ -151,7 +151,7 @@ def ray_row(A_mn, b_mn, u_T, v_T, axes3, _fast_vol=True):
         else:
             vol = volume_cal(10, 3, A_lass, b_lass) / (u_T * v_T)
 
-        if np.allclose(vol, 0):
+        if math.isclose(vol, 0):
             return
 
         if (i2 == i1 + 1) and (j2 == j1 + 1) and (k2 == k1 + 1):
@@ -314,7 +314,7 @@ def main(argv=None):
     grid_uv = RegularGrid.linspace((args.ulim[0], args.ulim[1], Nu),
                                    (args.vlim[0], args.vlim[1], Nv))
 
-    H = ray_matrix(theta_deg, phi_deg, axes3, grid_uv, n_cpu=args.n_cpu)
+    H = ray_matrix(theta, phi, axes3, grid_uv, n_cpu=args.n_cpu)
 
     sp.sparse.save_npz(args.H_filename, H)
 
