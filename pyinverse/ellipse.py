@@ -201,6 +201,7 @@ def ellipse_raster(ellipse, regular_grid, doall=False, A=None, N=20):
     integrals over partial intersections (see
     :func:`integrate_indicator_function`).
 
+    Useful reference: https://stackoverflow.com/questions/622287/area-of-intersection-between-circle-and-rectangle
     """
     if A is None:
         A = np.zeros(regular_grid.shape)
