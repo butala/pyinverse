@@ -1,9 +1,12 @@
 import numpy as np
+import scipy as sp
 import matplotlib.pylab as plt
 import vtk
 
 from .angle import Angle
 from .ellipsoid import Ellipsoid
+from .axis import RegularAxis
+from .axes import RegularAxes3
 
 
 """
@@ -134,7 +137,23 @@ class Phantom3:
         self._ellipsoids = [Ellipsoid(*(list(row[:6]) + [Angle(deg=x) for x in row[6:9]] + [row[9]])) for row in ellipsoid_matrix[key]]
 
     def __call__(self, x, y, z):
+        """
+        """
         return sum([e(x, y, z) for e in self._ellipsoids])
+
+    def raster(self, axes3, D=4):
+        """
+        """
+        assert D >= 1
+        ax_hires = RegularAxis(axes3.axis_x.x0, axes3.axis_x.T / D, axes3.axis_x.N * D)
+        ay_hires = RegularAxis(axes3.axis_y.x0, axes3.axis_y.T / D, axes3.axis_y.N * D)
+        az_hires = RegularAxis(axes3.axis_z.x0, axes3.axis_z.T / D, axes3.axis_z.N * D)
+        axes3_hires = RegularAxes3(ax_hires, ay_hires, az_hires)
+        a_z, a_y, a_x = axes3_hires.centers
+        x = self(a_x.flatten(), a_y.flatten(), a_z.flatten())
+        x.shape = axes3_hires.shape
+        ones = np.ones([D, D, D])
+        return sp.ndimage.convolve(x, ones/D**3, mode='constant')[::D, ::D, ::D]
 
     def actor(self, opacity=0.2, cmap='viridis'):
         """
