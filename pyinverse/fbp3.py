@@ -55,15 +55,12 @@ def fbp3_theta0(axes3, grid_uv, phi_deg_axis, sinogram3, radon_matrices=None, th
     X_backproject = np.zeros(axes3.shape)
     for i, (phi_deg_i, p_uv_i) in tenumerate(zip(phi_deg_axis, sinogram3), total=phi_deg_axis.N):
         phi_i = Angle(deg=phi_deg_i)
-        grid_uv_ft_i, p_uv_ft_i = grid_uv.spectrum(p_uv_i)
+        grid_uv_ft_i, p_uv_ft_i = grid_uv.spectrum(p_uv_i, real=True)
         if i == 0:
             ramp = ramp_filter3(grid_uv_ft_i.Hz())
         p_uv_ft_ramp_i = p_uv_ft_i * ramp
 
         _, p_uv_filtered_i = grid_uv_ft_i.ispectrum(p_uv_ft_ramp_i)
-
-        assert np.allclose(np.imag(p_uv_filtered_i), 0)
-        p_uv_filtered_i = np.real(p_uv_filtered_i)
 
         if radon_matrices:
             X_backproject_i = radon_matrices[i].T @ p_uv_filtered_i.flat
