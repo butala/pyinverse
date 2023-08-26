@@ -28,8 +28,8 @@ class RegularAxis:
         self.__post_init__()
 
     def __post_init__(self):
-        self._centers = self.x0 + np.arange(self.N, dtype=float) * self.T
-        self._borders = self.x0 - self.T/2 + np.arange(self.N + 1, dtype=float) * self.T
+        self._centers = np.arange(self.N, dtype=float) * self.T + self.x0
+        self._borders = np.arange(self.N + 1, dtype=float) * self.T + self.x0 - self.T/2
         self._order = Order.INCREASING
 
     def __repr__(self):
