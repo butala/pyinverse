@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
 import numpy as np
-import scipy
+from scipy.spatial.transform import Rotation
 import vtk
 
 from pyinverse.angle import Angle
@@ -60,9 +60,9 @@ def ellipsoid_proj(ellipsoid, theta, phi, grid, Y=None):
                          theta.cos])
 
     # rotation property
-    e_vec = ellipsoid.R_matrix.T @ e_vec0
-    e1_vec = ellipsoid.R_matrix.T @ e1_vec0
-    e2_vec = ellipsoid.R_matrix.T @ e2_vec0
+    e_vec = ellipsoid.R.apply(e_vec0, inverse=True)
+    e1_vec = ellipsoid.R.apply(e1_vec0, inverse=True)
+    e2_vec = ellipsoid.R.apply(e2_vec0, inverse=True)
 
     U, V = grid.centers
 
@@ -92,7 +92,7 @@ def ellipsoid_proj(ellipsoid, theta, phi, grid, Y=None):
     return Y
 
 
-def ellipsoid_ft(ellipsoid, kx, ky, kz, optimize=False):
+def ellipsoid_ft(ellipsoid, kx, ky, kz, fast=True, optimize=False):
     """*kx*, *k_y*, and *k_z* are in Hz"""
     # Cheng Guan Koay, Joelle E. Sarlls, and Evren Ozarslan,
     # Three-Dimensional Analytical Magnetic Resonance Imaging Phantom
@@ -100,12 +100,21 @@ def ellipsoid_ft(ellipsoid, kx, ky, kz, optimize=False):
     # (2007)
     assert kx.shape == ky.shape == kz.shape
     I0 = np.isclose(kx, 0) & np.isclose(ky, 0) & np.isclose(kz, 0)
-    R = ellipsoid.R_matrix
     kxyz = np.array([kx, ky, kz])
-    kxyz_tilde = np.einsum('ij,jklm->iklm', ellipsoid.R_matrix.T, kxyz, optimize=optimize)
-    kx_tilde = kxyz_tilde[0, :, :, :]
-    ky_tilde = kxyz_tilde[1, :, :, :]
-    kz_tilde = kxyz_tilde[2, :, :, :]
+    if fast:
+        R = ellipsoid.R.as_matrix()
+        kxyz_tilde = np.einsum('ij,jklm->iklm', R.T, kxyz, optimize=optimize)
+        kx_tilde = kxyz_tilde[0, :, :, :]
+        ky_tilde = kxyz_tilde[1, :, :, :]
+        kz_tilde = kxyz_tilde[2, :, :, :]
+    else:
+        #kxyz = np.array([kx, ky, kz])
+        #Z = list(zip(*[x.flat for x in kxyz[..., :, :, :]]))
+        #kx_tilde, ky_tilde, kz_tilde = [np.array(x).reshape(kx.shape) for x in zip(*ellipsoid.R.apply(Z, inverse=True))]
+        Z = ellipsoid.R.apply(np.vstack((kx.flat, ky.flat, kz.flat)).T, inverse=True)
+        kx_tilde = Z[:, 0].reshape(kx.shape)
+        ky_tilde = Z[:, 1].reshape(kx.shape)
+        kz_tilde = Z[:, 2].reshape(kx.shape)
     K = np.sqrt((ellipsoid.a * kx_tilde)**2 + (ellipsoid.b * ky_tilde)**2 + (ellipsoid.c * kz_tilde)**2)
     delta = np.array([ellipsoid.x0, ellipsoid.y0, ellipsoid.z0])
     P = np.exp(-1j * 2 * np.pi * np.einsum('i,ijkl->jkl', np.array(delta), kxyz, optimize=optimize))
@@ -115,7 +124,6 @@ def ellipsoid_ft(ellipsoid, kx, ky, kz, optimize=False):
     out[J] = ellipsoid.rho * ellipsoid.a * ellipsoid.b * ellipsoid.c * (np.sin(2 * np.pi * K[J]) - 2 * np.pi * K[J] * np.cos(2 * np.pi * K[J])) / (2 * np.pi**2 * K[J]**3)
     out *= P
     return out
-
 
 @dataclass
 class Ellipsoid:
@@ -133,20 +141,17 @@ class Ellipsoid:
 
     rho: float
 
-
     @property
-    def R_matrix(self):
+    def R(self):
         """
-        Return the rotation matrix corresponding to the Z-X-Z
-        Euler angle parameters alpha, beta, and gamma.
         """
         try:
-            return self._R_matrix
+            return self._R_rot
         except AttributeError:
-            self._R_matrix = scipy.spatial.transform.Rotation.from_euler('ZXZ',
-                                                                         [self.alpha.deg, self.beta.deg, self.gamma.deg],
-                                                                         degrees=True).as_matrix()
-            return self.R_matrix
+            self._R_rot = Rotation.from_euler('ZXZ',
+                                              [self.alpha.deg, self.beta.deg, self.gamma.deg],
+                                              degrees=True)
+            return self.R
 
 
     def __call__(self, x, y, z, Y=None):
@@ -166,7 +171,8 @@ class Ellipsoid:
         else:
             assert Y.shape == x.shape
         p = np.stack((x, y, z)) - np.array([self.x0, self.y0, self.z0])[:, np.newaxis]
-        M_p = (M @ self.R_matrix.T) @ p
+        z = self.R.apply(p.T, inverse=True)
+        M_p = M @ z.T
         I = np.einsum('ij,ij->j', M_p, M_p) <= 1
         Y[I] = self.rho
         return Y
@@ -206,10 +212,10 @@ class Ellipsoid:
         return ellipsoid_proj(self, theta, phi, grid, Y=Y)
 
 
-    def fourier_transform(self, fx, fy, fz):
+    def fourier_transform(self, fx, fy, fz, fast=False):
         """
         """
-        return ellipsoid_ft(self, fx, fy, fz)
+        return ellipsoid_ft(self, fx, fy, fz, fast=fast)
 
 
 if __name__ == '__main__':
