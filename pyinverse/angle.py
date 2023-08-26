@@ -93,3 +93,7 @@ if __name__ == '__main__':
     x = Angle(deg=45)
     print(x)
     print(x.sin)
+
+    z = AngleRegularAxis.linspace(Angle(deg=0), Angle(deg=180), 6, endpoint=False)
+    print(z)
+    print(z.deg.centers)
