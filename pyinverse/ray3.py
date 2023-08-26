@@ -184,6 +184,8 @@ def ray_row(A_mn, b_mn, u_T, v_T, axes3, _fast_vol=True):
     except TypeError:
         # no intersection --- ray_helper returns None
         return [], []
+    if len(data) == 0:
+        return [], []
     flat_indices = RegularAxes3.ravel_multi_index(list(zip(*ijk)), axes3.shape)
     sorted_indices, sorted_data = list(zip(*sorted(zip(flat_indices, data), key=lambda x: x[0])))
     return sorted_data, sorted_indices
