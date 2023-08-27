@@ -42,10 +42,11 @@ def backproject3(theta, phi, axes3, grid_uv, X, method='linear'):
     return X_backproject
 
 
-def fbp3_theta0(axes3, grid_uv, phi_deg_axis, sinogram3, radon_matrices=None, theta0=Angle(deg=0)):
+def fbp3_theta0(axes3, grid_uv, phi_axis, sinogram3, radon_matrices=None, theta0=Angle(deg=0)):
     """
+    phi_axis: AngleRegularAxis
     """
-    assert phi_deg_axis.N == len(sinogram3)
+    assert phi_axis.N == len(sinogram3)
     for p_uv_i in sinogram3:
         assert p_uv_i.shape == grid_uv.shape
 
@@ -53,8 +54,7 @@ def fbp3_theta0(axes3, grid_uv, phi_deg_axis, sinogram3, radon_matrices=None, th
         alpha = grid_uv.axis_x.T * grid_uv.axis_y.T / (axes3.axis_x.T * axes3.axis_y.T * axes3.axis_z.T)
 
     X_backproject = np.zeros(axes3.shape)
-    for i, (phi_deg_i, p_uv_i) in tenumerate(zip(phi_deg_axis, sinogram3), total=phi_deg_axis.N):
-        phi_i = Angle(deg=phi_deg_i)
+    for i, (phi_i, p_uv_i) in tenumerate(zip(phi_axis, sinogram3), total=phi_axis.N):
         grid_uv_ft_i, p_uv_ft_i = grid_uv.spectrum(p_uv_i, real=True)
         if i == 0:
             ramp = ramp_filter3(grid_uv_ft_i.Hz())
@@ -68,4 +68,4 @@ def fbp3_theta0(axes3, grid_uv, phi_deg_axis, sinogram3, radon_matrices=None, th
             X_backproject += X_backproject_i * alpha
         else:
             X_backproject += backproject3(theta0, phi_i, axes3, grid_uv, p_uv_filtered_i)
-    return np.radians(phi_deg_axis.T) * X_backproject
+    return phi_axis.rad.T * X_backproject
