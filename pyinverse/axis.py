@@ -2,7 +2,7 @@ import enum
 from abc import ABCMeta, abstractmethod
 
 import numpy as np
-import scipy.fft
+import scipy as sp
 
 
 class Order(enum.Enum):
@@ -64,7 +64,7 @@ class RegularAxis:
     def N_fast(self):
         """ ??? """
         # This also works for rfft?
-        return scipy.fft.next_fast_len(self.N)
+        return sp.fft.next_fast_len(self.N)
 
     @classmethod
     def linspace(cls, start, stop, num=50, endpoint=True):
@@ -118,9 +118,9 @@ class RegularAxis:
             return RegularAxis(self.x0, self.T, n).spectrum(x[:n], real=real)
         if real:
             assert np.isrealobj(x)
-            X_spectrum = scipy.fft.rfft(x, n=n)
+            X_spectrum = sp.fft.rfft(x, n=n)
         else:
-            X_spectrum = scipy.fft.fft(x, n=n)
+            X_spectrum = sp.fft.fft(x, n=n)
         axis_freq = self.spectrum_axis(n, real=real)
         P = np.exp(-1j*axis_freq.centers*self.x0)
         X_spectrum *= P * self.T
@@ -216,7 +216,7 @@ class FFTRegularAxis(FreqRegularAxis):
         super().__init__(x0, 1/(d*N), N)
         self._axis_t = axis_t
         self.__N_FULL = N
-        self._centers = scipy.fft.fftfreq(self.N, d=self._d)
+        self._centers = sp.fft.fftfreq(self.N, d=self._d)
         self._order = Order.FFT
 
     def __post_init__(self):
@@ -241,11 +241,11 @@ class FFTRegularAxis(FreqRegularAxis):
         if x is None:
             return increasing_axis
         else:
-            return increasing_axis, scipy.fft.fftshift(x)
+            return increasing_axis, sp.fft.fftshift(x)
 
     def ispectrum(self, *args, **kwds):
         """ ??? """
-        return super().ispectrum(*args, _ifft=scipy.fft.irfft, **kwds)
+        return super().ispectrum(*args, _ifft=sp.fft.irfft, **kwds)
 
 
 class RFFTRegularAxis(FreqRegularAxis):
@@ -274,7 +274,7 @@ class RFFTRegularAxis(FreqRegularAxis):
     def ispectrum(self, X_spectrum, **kwds):
         """ ??? """
         assert len(X_spectrum) == self._N_FULL//2 + 1
-        return super().ispectrum(X_spectrum, _ifft=scipy.fft.irfft, **kwds)
+        return super().ispectrum(X_spectrum, _ifft=sp.fft.irfft, **kwds)
 
 
 def dtft(x, real=False, n=None, n0=0):

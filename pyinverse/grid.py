@@ -1,7 +1,7 @@
 import imageio
 from tqdm import tqdm
 import numpy as np
-import scipy.fft
+import scipy as sp
 
 
 from .axis import Order, RegularAxis, FFTRegularAxis, RFFTRegularAxis
@@ -114,9 +114,9 @@ class RegularGrid:
                   (Order.INCREASING, Order.INCREASING): ((False, False), False)}
 
     # (axis_x order, axis_y, order) -> appropgriate fftshift
-    _SHIFT_MAP = {(Order.FFT, Order.FFT):        lambda x: scipy.fft.fftshift(x),
-                  (Order.FFT, Order.INCREASING): lambda x: scipy.fft.fftshift(x, axes=1),
-                  (Order.INCREASING, Order.FFT): lambda x: scipy.fft.fftshift(x, axes=0),
+    _SHIFT_MAP = {(Order.FFT, Order.FFT):        lambda x: sp.fft.fftshift(x),
+                  (Order.FFT, Order.INCREASING): lambda x: sp.fft.fftshift(x, axes=1),
+                  (Order.INCREASING, Order.FFT): lambda x: sp.fft.fftshift(x, axes=0),
                   (Order.INCREASING, Order.INCREASING): lambda x: x}
 
     def increasing(self, x=None):
@@ -198,12 +198,12 @@ class RegularGrid:
 
 
     # (real, axis) -> appropriate (r)fft function
-    _FFT_MAP = {(True, None):  lambda x, s: scipy.fft.rfft2(x, s=s),
-                (True, 0):     lambda x, s: scipy.fft.rfft(x, n=s[0], axis=0),
-                (True, 1):     lambda x, s: scipy.fft.rfft(x, n=s[1], axis=1),
-                (False, None): lambda x, s: scipy.fft.fft2(x, s=s),
-                (False, 0):    lambda x, s: scipy.fft.fft(x, n=s[0], axis=0),
-                (False, 1):    lambda x, s: scipy.fft.fft(x, n=s[1], axis=1)}
+    _FFT_MAP = {(True, None):  lambda x, s: sp.fft.rfft2(x, s=s),
+                (True, 0):     lambda x, s: sp.fft.rfft(x, n=s[0], axis=0),
+                (True, 1):     lambda x, s: sp.fft.rfft(x, n=s[1], axis=1),
+                (False, None): lambda x, s: sp.fft.fft2(x, s=s),
+                (False, 0):    lambda x, s: sp.fft.fft(x, n=s[0], axis=0),
+                (False, 1):    lambda x, s: sp.fft.fft(x, n=s[1], axis=1)}
 
 
     def spectrum(self, x, s=None, axis=None, real=False):
@@ -295,11 +295,11 @@ class FreqRegularGridBase(RegularGrid):
 class FreqRegularGrid(FreqRegularGridBase):
     @property
     def _IFFT2(self):
-        return scipy.fft.ifft2
+        return sp.fft.ifft2
 
     @property
     def _IFFT(self):
-        return scipy.fft.ifft
+        return sp.fft.ifft
 
     _AXIS_MAP = {None: (FFTRegularAxis, FFTRegularAxis),
                  0:    (RegularAxis, FFTRegularAxis),
@@ -309,11 +309,11 @@ class FreqRegularGrid(FreqRegularGridBase):
 class RealFreqRegularGrid(FreqRegularGridBase):
     @property
     def _IFFT2(self):
-        return scipy.fft.irfft2
+        return sp.fft.irfft2
 
     @property
     def _IFFT(self):
-        return scipy.fft.irfft
+        return sp.fft.irfft
 
     _AXIS_MAP = {None: (RFFTRegularAxis, FFTRegularAxis),
                  0:    (RegularAxis, RFFTRegularAxis),
