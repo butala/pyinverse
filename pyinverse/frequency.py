@@ -34,7 +34,7 @@ class Frequency:
         return Frequency(f=self.f / other)
 
     def __rtruediv__(self, other):
-        return self.__div__(other)
+        return self.__truediv__(other)
 
     def __add__(self, other):
         try:

@@ -32,7 +32,7 @@ class Angle:
         return Angle(rad=self.rad / other)
 
     def __rtruediv__(self, other):
-        return self.__div__(other)
+        return self.__truediv__(other)
 
     def __add__(self, other):
         try:
