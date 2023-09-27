@@ -119,7 +119,7 @@ def ellipse_proj_direct(ellipse, sinogram_grid, Y=None):
     gamma = np.arctan2(ellipse.y0, ellipse.x0)
     s = np.sqrt(ellipse.x0**2 + ellipse.y0**2)
     TAU = T - s * np.cos(gamma - THETA)
-    BETA = THETA - ellipse.phi_rad
+    BETA = THETA - ellipse.phi.rad
     ALPHA = np.sqrt(ellipse.a**2 * np.cos(BETA)**2 + ellipse.b**2 * np.sin(BETA)**2)
     I = abs(TAU) <= ALPHA
     if Y is None:
@@ -148,7 +148,7 @@ def ellipse_proj_rect(ellipse, sinogram_grid, a, Y=None):
     if Y is None:
         Y = np.zeros((sinogram_grid.shape))
     for k, theta_k in enumerate(np.radians(sinogram_grid.axis_x)):
-        theta_prime = theta_k - ellipse.phi_rad
+        theta_prime = theta_k - ellipse.phi.rad
         t_prime = radon_translate(theta_k, sinogram_grid.axis_y.centers, ellipse.x0, ellipse.y0)
         theta_prime2, t_prime2, scale_factor = radon_affine_scale(theta_prime, t_prime, 1/ellipse.a, 1/ellipse.b)
         a_prime = a / scale_factor * ellipse.a * ellipse.b
@@ -227,7 +227,7 @@ def ellipse_raster(ellipse, regular_grid, doall=False, A=None, N=20):
     # Determine if corners of each pixel are contained inside the ellipse.
     X, Y = np.meshgrid(regular_grid.axis_x.borders[J1:J2+2] - ellipse.x0,
                        regular_grid.axis_y.borders[I1:I2+2] - ellipse.y0)
-    D = (X*ellipse.cos_phi + Y*ellipse.sin_phi)**2 / ellipse.a_sq + (Y*ellipse.cos_phi - X*ellipse.sin_phi)**2 / ellipse.b_sq
+    D = (X*ellipse.phi.cos + Y*ellipse.phi.sin)**2 / ellipse.a_sq + (Y*ellipse.phi.cos - X*ellipse.phi.sin)**2 / ellipse.b_sq
 
     n_rows = A.shape[0]
     for i, A_i in enumerate(range(I1, I2 + 1)):

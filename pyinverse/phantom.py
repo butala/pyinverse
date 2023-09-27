@@ -95,7 +95,7 @@ class Phantom:
     def proj_ft(self, sinogram_ft_grid, rect=False, a=None):
         """
         """
-        Y_ft = np.zeros(sinogram_ft_grid.shape, dtype=np.complex)
+        Y_ft = np.zeros(sinogram_ft_grid.shape, dtype=complex)
         for e in self._ellipses:
             e.proj_ft(sinogram_ft_grid, rect=rect, a=a, Y_ft=Y_ft)
         return Y_ft
