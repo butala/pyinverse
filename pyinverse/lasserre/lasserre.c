@@ -253,8 +253,8 @@ double lasserre_vol(size_t M, size_t N, double *A, double *b) {
     b_copy = malloc(M * sizeof(double));
     assert(b_copy);
 
-    memcpy(A_copy, sizeof(double), M*N);
-    memcpy(b_copy, sizeof(double), M);
+    memcpy(A_copy, A, sizeof(double)*M*N);
+    memcpy(b_copy, b, sizeof(double)*M);
 
     vol = lasserre_vol_helper(&M_copy, N, A, b);
     if (isnan(vol)) {
