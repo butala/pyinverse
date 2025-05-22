@@ -129,7 +129,7 @@ def ellipse_proj_direct(ellipse, sinogram_grid, Y=None):
 
 
 def integral_sqrt_a2_minus_x2(x, a):
-    """Integral of $\sqrt(a^2 - x^2)$ --- see (30) at
+    """Integral of $\\sqrt(a^2 - x^2)$ --- see (30) at
     http://integral-table.com.
 
     """

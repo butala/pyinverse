@@ -29,7 +29,7 @@ numpy).
 
 def robust_scalar_arcsin(x):
     """Return the arcsin of *x* (see :func:`math.asin`). The arcsin
-    function is defined on the domain :math:`|x| \leq 1`. Due to
+    function is defined on the domain :math:`|x| \\leq 1`. Due to
     finite precision issues, *x* can be epsilon larger than 1 or less
     than -1. Catch for these cases.
 
@@ -47,7 +47,7 @@ def robust_scalar_arcsin(x):
 
 def robust_scalar_sqrt(x):
     """Return the sqrt of *x* (see :func:`math.sqrt`). The sqrt
-    function is defined on the domain :math:`x \geq 0`. Due to
+    function is defined on the domain :math:`x \\geq 0`. Due to
     finite precision issues, *x* can be epsilon less
     than 0. Catch for this case.
 
