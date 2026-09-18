@@ -135,6 +135,11 @@ ltximg/
 
 # Doc build artifacts
 doc/*.pdf
+doc/*.aux
+doc/*.log
+doc/*.out
+doc/*.tex
+doc/*.toc
 
 # Validation-harness figures
 tests/out/

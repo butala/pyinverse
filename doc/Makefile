@@ -47,7 +47,8 @@ check: pdf
 	pdftotext $(DOC).pdf /tmp/$(DOC).txt
 	@! grep -q 'backslash' /tmp/$(DOC).txt || \
 	   { echo "FAIL: math was exported as escaped plain text"; exit 1; }
-	@for s in Contents Jacobian "missing cone" "slice decoupling" 0.39129 3.8 Grangeat; do \
+	@for s in Contents Jacobian "missing cone" "slice decoupling" 0.39129 3.8 Grangeat \
+	          "sec" "0.816" "cone fraction" "tilted" "plateaus"; do \
 	   grep -q "$$s" /tmp/$(DOC).txt || { echo "MISSING from the PDF: $$s"; exit 1; }; \
 	done
 	@echo "OK: org -> PDF builds cleanly and carries the expected content"

@@ -81,6 +81,12 @@ coordinates are \((\phi, f_u, f_v)\), and their Jacobian is \(|f_u|\).
 4. Because \(|f_u|\) is constant in \(f_v\), the 3-D reconstruction is
    /exactly/ per-slice 2-D FBP. This was verified numerically to machine
    precision (\(\sim 10^{-14}\)) --- see §7.
+5. The same construction covers a *tilted* detector
+   (\(\theta_0 \neq 0\), §8): the filter is still \(|f_u|\), but the
+   inversion formula now carries an explicit \(\cos\theta_0\). Unlike
+   the untilted case, that geometry is intrinsically /incomplete/ --- a
+   double cone of half-angle \(|\theta_0|\) about the rotation axis is
+   never sampled, so the error plateaus rather than converges.
 #+end_quote
 
 * Setting and notation
@@ -327,7 +333,7 @@ projection count:
 |---------------+---------+---------+---------+---------+---------+---------|
 | NRMSE         | 0.83444 | 0.47432 | 0.21750 | 0.12713 | 0.12175 | 0.12139 |
 
-*3-D FBP with the current \(\sqrt{f_u^2+f_v^2}\) filter saturates* ---
+*3-D FBP with the original \(\sqrt{f_u^2+f_v^2}\) filter saturates* ---
 flat in \(N_\phi\), the direct fingerprint of the wrong Jacobian:
 
 | \(N_\phi\)                     | 8       | 16      | 32      | 64      | 128     | 256     |
@@ -356,6 +362,9 @@ an independently written slice-by-slice 2-D FBP. It does:
 Note the last two rows: for the \(z\)-independent phantom both filters
 agree to \(\sim10^{-4}\), exactly as predicted in §6.
 
+*Tilted detector.* The numerical evidence for \(\theta_0 \neq 0\) is
+collected in §8.
+
 * The general case: tilted detector, \(\theta_0 \neq 0\)
 :PROPERTIES:
 :CUSTOM_ID: the-general-case-tilted-detector-theta_0-neq-0
@@ -369,8 +378,13 @@ Repeating the determinant computation of Appendix A with general
 \[\det\frac{\partial(f_x,f_y,f_z)}{\partial(\phi,f_u,f_v)} = -f_u\cos\theta , \qquad\text{so}\qquad d^3\xi = |f_u|\,|\cos\theta|\;d\phi\,df_u\,df_v . \qquad (19)\]
 
 So \(|f_u|\) remains the correct multiplier *up to a constant scale
-factor* \(|\cos\theta|\) (harmless; it just rescales the reconstruction)
-for any \(\theta\neq 90^\circ\).
+factor* \(|\cos\theta|\) for any \(\theta\neq 90^\circ\). That constant is
+*not* harmless: it is part of the inversion formula, and omitting it
+inflates the reconstruction by exactly \(\sec\theta_0\), uniformly in
+space. =fbp3_theta0= applies =np.cos(theta0.rad)= for this reason.
+Because the error is a pure amplitude, no study that varies only the
+number of projections can see it --- it takes a phantom whose data are
+*/complete/* at every tilt, i.e. one that is invariant along \(z\).
 
 However, the /coverage/ changes. The plane normals are now
 \(\hat n(\phi)=\hat e_1\times\hat e_2=(\sin\phi\cos\theta,-\cos\phi\cos\theta,-\sin\theta)\),
@@ -387,8 +401,21 @@ For \(\theta=0\) this is satisfied everywhere except the measure-zero
 
 is *never sampled* --- a /missing cone/. A tilted rotating detector is
 therefore an intrinsically incomplete-data problem, in contrast to the
-exact \(\theta=0\) case. This branch is not exercised by the validation
-harness and is flagged as untested; it deserves its own study.
+exact \(\theta=0\) case.
+
+This branch is covered by the validation harness. On the \(z\)-invariant
+control the tilted reconstruction matches an independent 2-D FBP of the
+cross-section to \(\sim10^{-4}\) at every tilt, and the amplitude is
+\(\theta\)-independent to five digits; dropping the \(\cos\theta_0\)
+factor breaks exactly that (the scale then drifts as \(\sec\theta_0\)).
+On a genuinely 3-D phantom the error plateaus with more projections and
+the plateau grows with \(\theta_0\), tracking the energy fraction of the
+missing cone: at \(\theta_0 = 15^\circ, 30^\circ, 45^\circ\) the cone holds
+\(25.9\%, 43.3\%, 49.5\%\) of the (mean-removed) object energy and the
+relative \(L^2\) error settles at \(0.542, 0.720, 0.816\), close to
+\(\sqrt{\text{cone fraction}}\). The =radon_matrices= path of
+=fbp3_theta0= carries no \(\theta\) dependence at all and is therefore
+restricted to \(\theta_0 = 0\) (enforced).
 
 * Relation to FDK and other geometries
 :PROPERTIES:
@@ -419,7 +446,8 @@ python3 tests/fbp_validation.py
 #+end_example
 
 It runs the 2-D and 3-D sweeps, both filters, both phantoms, the
-slice-by-slice equivalence check, and writes figures to =tests/out/=.
+slice-by-slice equivalence check, and the tilted-detector
+(\(\theta_0 \neq 0\)) checks, and writes figures to =tests/out/=.
 The package must be importable and the =lasserre= C extension built in
 place (=python3 setup.py build_ext --inplace=); =scipy= is required.
 
@@ -434,6 +462,17 @@ The single line changed in =pyinverse/fbp3.py= was:
 +    Cu_Hz = grid_uv_ft_Hz.centers[0]
 +    return np.abs(Cu_Hz)
 #+end_src
+
+and the \(\cos\theta_0\) factor of (19) is applied in =fbp3_theta0=:
+
+#+begin_src diff
+-    return phi_axis.rad.T * X_backproject
++    return phi_axis.rad.T * np.cos(theta0.rad) * X_backproject
+#+end_src
+
+The =radon_matrices= path of =fbp3_theta0= encodes the untilted
+geometry only -- it carries no \(\theta\) dependence -- and is now
+guarded accordingly.
 
 After the change the harness reports (ellipsoid phantom,
 \(N_\phi = 64\)) a relative \(L_2\) error of \(1.7\times10^{-14}\)
