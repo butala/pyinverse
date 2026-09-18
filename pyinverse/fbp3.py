@@ -61,13 +61,53 @@ def backproject3(theta, phi, axes3, grid_uv, X, method='linear'):
 
 def fbp3_theta0(axes3, grid_uv, phi_axis, sinogram3, radon_matrices=None, theta0=Angle(deg=0)):
     """
-    phi_axis: AngleRegularAxis
+    Filtered backprojection for a planar 2-D detector rotating about z.
+
+    Parameters
+    ----------
+    axes3 : RegularAxes3-like
+        Reconstruction grid; ``axes3.shape == (Nz, Ny, Nx)``.
+    grid_uv : RegularGrid
+        Detector grid: ``axis_x`` -> u (transverse to the rotation axis),
+        ``axis_y`` -> v.
+    phi_axis : AngleRegularAxis
+        Rotation angles.
+    sinogram3 : sequence of ndarray
+        ``sinogram3[i]`` is the projection p(u, v) measured at
+        ``phi_axis[i]``; each has shape ``grid_uv.shape``.
+    radon_matrices : sequence, optional
+        Pre-computed backprojection matrices.  These encode the *untilted*
+        (theta = 0) geometry only -- they carry no theta dependence at
+        all -- so they may be combined only with ``theta0 = 0``.
+    theta0 : Angle, optional
+        Fixed polar tilt of the detector relative to the rotation (z)
+        axis.
+
+    Notes
+    -----
+    The result carries an explicit ``cos(theta0)`` factor.  Writing the
+    object's Fourier transform in the detector frame,
+    f = f_u e1 + f_v e2, the change of variables (phi, f_u, f_v) has
+    Jacobian ``-f_u cos(theta0)``: the ``|f_u|`` is absorbed by
+    ``ramp_filter3`` and the ``cos(theta0)`` belongs to the inversion
+    formula.  Dropping it inflates the reconstruction by exactly
+    ``sec(theta0)`` (uniformly in space, so it is easy to miss).
+
+    For ``theta0 != 0`` the data are intrinsically incomplete: the double
+    cone of half-angle ``|theta0|`` about the rotation axis is *never*
+    sampled, so the error plateaus as the number of projections grows
+    instead of converging to zero.  Objects invariant along z live on
+    ``f_z = 0`` and are therefore still recovered exactly.
+
+    See doc/fbp3-filter-derivation.org, sections 5, 8 and Appendix A.
     """
     assert phi_axis.N == len(sinogram3)
     for p_uv_i in sinogram3:
         assert p_uv_i.shape == grid_uv.shape
 
     if radon_matrices:
+        assert np.isclose(theta0.rad, 0.0), \
+            "radon_matrices encode the untilted (theta = 0) geometry only"
         alpha = grid_uv.axis_x.T * grid_uv.axis_y.T / (axes3.axis_x.T * axes3.axis_y.T * axes3.axis_z.T)
 
     X_backproject = np.zeros(axes3.shape)
@@ -85,4 +125,6 @@ def fbp3_theta0(axes3, grid_uv, phi_axis, sinogram3, radon_matrices=None, theta0
             X_backproject += X_backproject_i * alpha
         else:
             X_backproject += backproject3(theta0, phi_i, axes3, grid_uv, p_uv_filtered_i)
-    return phi_axis.rad.T * X_backproject
+    # The cos(theta0) is part of the inversion formula: the Jacobian of the
+    # (phi, f_u, f_v) chart is -f_u cos(theta0).  See the docstring above.
+    return phi_axis.rad.T * np.cos(theta0.rad) * X_backproject
