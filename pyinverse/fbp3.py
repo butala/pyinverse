@@ -7,9 +7,26 @@ from .angle import Angle
 
 def ramp_filter3(grid_uv_ft_Hz):
     """
+    Ramp filter for 3-D FBP with a planar 2-D detector rotating about z.
+
+    Writing the object's Fourier transform in the detector frame,
+    f = f_u e1 + f_v e2, the change of variables (phi, f_u, f_v) has
+    Jacobian |f_u|, so the reconstruction filter is the *1-D* ramp
+    |f_u| applied along the detector axis transverse to the rotation
+    axis.  It is *flat* along f_v: the detector rows v = z are
+    independent 2-D Radon data sets for the slices f(., ., z), so no
+    weighting may be applied across rows.
+
+    In particular this is *not* the isotropic 2-D ramp
+    sqrt(f_u**2 + f_v**2), which would impose a frequency dependent
+    gain sqrt(fx**2 + fy**2 + fz**2) / sqrt(fx**2 + fy**2) != 1 and
+    hence a reconstruction bias that does not decrease with the number
+    of projections.
+
+    See doc/fbp3-filter-derivation.org for the derivation.
     """
-    Cu_Hz, Cv_Hz = grid_uv_ft_Hz.centers
-    return np.sqrt(Cu_Hz**2 + Cv_Hz**2)
+    Cu_Hz = grid_uv_ft_Hz.centers[0]
+    return np.abs(Cu_Hz)
 
 
 def backproject3(theta, phi, axes3, grid_uv, X, method='linear'):
