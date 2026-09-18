@@ -129,3 +129,12 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# Emacs org-latex-preview image cache (regenerable; see doc/Makefile)
+ltximg/
+
+# Doc build artifacts
+doc/*.pdf
+
+# Validation-harness figures
+tests/out/
