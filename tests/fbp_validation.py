@@ -36,6 +36,20 @@ Summary of the answer
 * Decisive check: with |f_u|, ``fbp3_theta0`` reproduces an independent
   slice-by-slice application of the (verified) 2-D FBP to machine
   precision, and the wrong sqrt filter does not.
+* Tilted detector (``theta0 != 0``): ``backproject3`` also supports a
+  planar 2-D detector held at a fixed polar tilt ``theta0`` from the
+  rotation axis.  The Jacobian of the (phi, f_u, f_v) chart is
+  ``-f_u cos(theta0)``, so the filter is *still* |f_u| but the inversion
+  formula carries an explicit ``cos(theta0)`` -- which ``fbp3_theta0``
+  applies.  Omitting it inflates the reconstruction by exactly
+  ``sec(theta0)``, a pure amplitude error.
+
+  Unlike the untilted case this geometry is intrinsically *incomplete*: a
+  frequency is sampled only when ``rho >= |f_z tan theta0|``, so a double
+  cone of half-angle ``|theta0|`` about f_z is never measured and the
+  error plateaus instead of converging.  Objects invariant along z live on
+  ``f_z = 0`` and remain exact at any tilt, which is what makes the
+  amplitude error measurable.
 
 Run:  python3 tests/fbp_validation.py
 """
@@ -61,6 +75,7 @@ for _name in ("imageio", "vtk"):
 from pyinverse.angle import Angle, AngleRegularAxis          # noqa: E402
 from pyinverse.axis import RegularAxis                        # noqa: E402
 from pyinverse.grid import RegularGrid                        # noqa: E402
+from pyinverse.ellipse import Ellipse                         # noqa: E402
 from pyinverse.ellipsoid import Ellipsoid                     # noqa: E402
 from pyinverse.phantom import Phantom                         # noqa: E402
 from pyinverse.fbp import fbp                                 # noqa: E402
@@ -70,6 +85,9 @@ from pyinverse.fbp3 import fbp3_theta0                        # noqa: E402
 # Keep a handle on the *shipped* filter so repeated sweeps don't capture a
 # previously monkeypatched version.
 _LIB_RAMP3 = fbp3_mod.ramp_filter3
+
+# numpy < 2 spells the trapezoid rule np.trapz.
+_trapz = getattr(np, "trapezoid", None) or np.trapz
 
 # Candidate 3-D ramp filters.  NB: ramp_filter3 is *called* as
 #     ramp_filter3(grid_uv_ft.Hz())
@@ -131,15 +149,26 @@ def ellipsoid_phantom():
     ]
 
 
+# Semi-axes of the cylindrical phantom's cross-section.  Also used to build
+# the independent 2-D reference in the theta0 != 0 checks, so the two cannot
+# drift apart.
+CYLINDER_AB = (0.60, 0.80)
+
+
 def cylinder_phantom():
     """A z-independent (cylindrical) phantom: a single huge-c ellipsoid.
 
     Its projection is independent of v, so *any* detector filter that
     reduces to |f_u| on the f_v = 0 line reproduces the 2-D answer.  This
     is the control that shows why the sqrt-filter bug stayed hidden.
+
+    It is also the control for the tilted-detector (theta0 != 0) checks:
+    a z-independent object lives on f_z = 0, which a tilted rotating
+    detector always samples, so its data stay *complete* at any tilt and
+    exact reconstruction remains possible.
     """
     return [
-        Ellipsoid(0.60, 0.80, 100.0, 0.0, 0.0, 0.0,
+        Ellipsoid(CYLINDER_AB[0], CYLINDER_AB[1], 100.0, 0.0, 0.0, 0.0,
                   Angle(deg=0), Angle(deg=0), Angle(deg=0), 1.0),
     ]
 
@@ -208,11 +237,11 @@ def run_2d(Na_list, Nx=128, Nt=256, tlim=2.0, plot=None):
 # 3-D sweep
 # ==========================================================================
 def run_3d(Na_list, n=32, Nu=64, ulim=2.0, filter_name="abs(f_u) (correct)",
-           phantom="ellipsoid", plot=None):
+           phantom="ellipsoid", theta_deg=0, plot=None):
     print("\n" + "=" * 74)
     print(f"3-D FBP  --  {phantom} phantom, ramp filter = {filter_name}")
     print(f"  volume {n}^3 on [-1,1]^3, detector {Nu}x{Nu} on "
-          f"[{-ulim},{ulim}]^2")
+          f"[{-ulim},{ulim}]^2, detector tilt theta0 = {theta_deg} deg")
     print("=" * 74)
     print(f"{'Nphi':>6} {'NRMSE':>12} {'NRMSE(central)':>15} {'max|recon|':>11}")
 
@@ -221,7 +250,7 @@ def run_3d(Na_list, n=32, Nu=64, ulim=2.0, filter_name="abs(f_u) (correct)",
     axes3 = Axes3.linspace((-1, 1, n), (-1, 1, n), (-1, 1, n))
     grid_uv = RegularGrid.linspace((-ulim, ulim, Nu), (-ulim, ulim, Nu))
     truth = eval_ellipsoids(ell, axes3)
-    theta = Angle(deg=0)
+    theta = Angle(deg=theta_deg)
 
     m = n // 8
     cent = np.zeros_like(truth, dtype=bool)
@@ -242,7 +271,8 @@ def run_3d(Na_list, n=32, Nu=64, ulim=2.0, filter_name="abs(f_u) (correct)",
               f"{np.max(np.abs(recon)):>11.4f}")
 
     if plot is not None:
-        plot[f"3d-{phantom}-{filter_name}"] = (truth, recons, out, axes3)
+        tag = "" if theta_deg == 0 else f"-th{theta_deg}"
+        plot[f"3d-{phantom}-{filter_name}{tag}"] = (truth, recons, out, axes3)
     return out
 
 
@@ -316,7 +346,332 @@ def check_fbp3_equals_sliced_2d(n=24, Nu=48, ulim=2.0, Nphi=64,
         res[name] = rel_l2(r, truth)
         print(f"  {name:<22}  NRMSE vs truth = {rel_l2(r, truth):.5f}"
               f"   rel. L2 vs slice-by-slice 2-D FBP = {diff:.3e}")
+        # With the correct filter this must be machine precision; it is the
+        # theta = 0 regression guard.  The wrong filter only has to fail for
+        # a genuinely 3-D object: for the z-invariant control it is supposed
+        # to agree (that is why the bug hid for so long).
+        if name != "sqrt (2-D ramp, wrong)":
+            assert diff < 1e-10, f"{name} does not reproduce slice-by-slice 2-D FBP"
+        elif phantom != "cylinder":
+            assert diff > 1e-3, "the wrong filter unexpectedly reproduces 2-D FBP"
+    fbp3_mod.ramp_filter3 = _LIB_RAMP3
     return ref, res
+
+
+# ==========================================================================
+# theta0 != 0: the tilted detector
+#
+# The detector is a planar 2-D array held at a fixed polar tilt theta0 from
+# the rotation (z) axis while it rotates in phi.  backproject3 maps a voxel
+# p to (u, v) = (e1 . p, e2 . p) with
+#
+#     e1 = (cos phi, sin phi, 0)
+#     e2 = (sin phi sin theta, -cos phi sin theta, cos theta)
+#
+# so at theta = 0, e2 = (0, 0, 1) and v = z: the detector rows are object
+# slices and the problem decouples slice by slice.  At theta != 0 the rows
+# are oblique and mix z -- and that is exactly what this section exercises.
+#
+# Two facts drive the checks below.
+#
+#  * The Jacobian of the (phi, f_u, f_v) chart is -f_u cos(theta0).  The
+#    filter therefore stays |f_u|, but the inversion formula carries an
+#    explicit cos(theta0).  fbp3_theta0 applies it.  Dropping it inflates
+#    the reconstruction by exactly sec(theta0), uniformly in space.
+#
+#  * A frequency xi is sampled iff xi . n(phi) = 0 for some phi, with
+#    n(phi) = (sin phi cos theta, -cos phi cos theta, -sin theta).  This
+#    needs rho >= |f_z tan theta|, so the double cone of half-angle |theta|
+#    about f_z is NEVER sampled: for a genuinely 3-D object the data are
+#    intrinsically incomplete and no number of projections can fix it.
+#    Objects invariant along z live on f_z = 0 and stay complete.
+#
+# check_theta0_amplitude and check_theta0_vs_2d_fbp are the regression guards
+# for the cos(theta0) factor (they fail if it is dropped).  The ray-integral,
+# missing-cone and continuity checks characterise the geometry itself and are
+# independent of that factor.
+# ==========================================================================
+def _detector_basis(theta_deg, phi_deg):
+    """(e1, e2) exactly as backproject3 builds them."""
+    th, ph = np.radians(theta_deg), np.radians(phi_deg)
+    e1 = np.array([np.cos(ph), np.sin(ph), 0.0])
+    e2 = np.array([np.sin(ph) * np.sin(th), -np.cos(ph) * np.sin(th),
+                   np.cos(th)])
+    return e1, e2
+
+
+def numeric_ray_integral(ellipsoids, theta_deg, phi_deg, u, v, N=40001,
+                         smax=3.0):
+    """Brute-force line integral of *ellipsoids* along the detector ray.
+
+    This is deliberately independent of ``Ellipsoid.proj``: the ray is
+    rebuilt from the detector basis (e1, e2) and the phantom is integrated
+    along it, so it tests the *convention* the forward projector and the
+    backprojector share.
+    """
+    e1, e2 = _detector_basis(theta_deg, phi_deg)
+    e = np.cross(e1, e2)
+    s = np.linspace(-smax, smax, N)
+    px = u * e1[0] + v * e2[0] + s * e[0]
+    py = u * e1[1] + v * e2[1] + s * e[1]
+    pz = u * e1[2] + v * e2[2] + s * e[2]
+    val = np.zeros(N)
+    for el in ellipsoids:
+        val += el(px, py, pz)
+    return _trapz(val, s)
+
+
+def missing_cone_energy_fraction(truth, theta_deg):
+    """Fraction of the object's (mean-removed) energy in the double cone of
+    half-angle *theta_deg* about f_z -- the part of frequency space a tilted
+    rotating detector never samples.
+    """
+    f = truth - truth.mean()
+    P = np.abs(np.fft.fftn(f))**2
+    nz, ny, nx = truth.shape
+    KZ, KY, KX = np.meshgrid(np.fft.fftfreq(nz), np.fft.fftfreq(ny),
+                             np.fft.fftfreq(nx), indexing="ij")
+    ang = np.arctan2(np.sqrt(KX**2 + KY**2), np.abs(KZ))
+    if theta_deg <= 0:
+        return 0.0
+    return P[ang < np.radians(theta_deg)].sum() / P.sum()
+
+
+def check_theta0_forward_model(n=24, Nu=48, ulim=2.0, thetas=(0, 15, 30, 45)):
+    """(A1) The tilted forward model on the z-invariant phantom.
+
+    Along a tilted ray the path through a cylinder is longer by exactly
+    1/cos(theta), and it is still independent of the detector row v (the
+    object is invariant along the direction in which the rows fan out).
+    Confirms that ``Ellipsoid.proj`` and ``backproject3`` agree on the tilt
+    convention.
+    """
+    print("\n" + "=" * 74)
+    print("Tilted forward model (z-invariant phantom, phi = 0)")
+    print("=" * 74)
+    print(f"{'theta':>6} {'sec(theta)':>11} {'ratio':>10} "
+          f"{'ratio*cos':>10} {'v-spread/max':>13}")
+    grid_uv = RegularGrid.linspace((-ulim, ulim, Nu), (-ulim, ulim, Nu))
+    ell = cylinder_phantom()
+    p0 = proj3(grid_uv, ell, Angle(deg=0), Angle(deg=0))
+    keep = np.abs(p0) > 1e-3 * np.abs(p0).max()
+    for th in thetas:
+        p = proj3(grid_uv, ell, Angle(deg=th), Angle(deg=0))
+        ratio = np.median(p[keep] / p0[keep])
+        spread = np.max(np.ptp(p, axis=0)) / np.max(np.abs(p))
+        print(f"{th:>6} {1 / np.cos(np.radians(th)):>11.6f} {ratio:>10.6f} "
+              f"{ratio * np.cos(np.radians(th)):>10.6f} {spread:>13.2e}")
+        assert abs(ratio * np.cos(np.radians(th)) - 1) < 1e-2, \
+            f"tilted projection is not sec(theta) times the untilted one (theta={th})"
+        assert spread < 2e-3, f"tilted projection is not v-independent (theta={th})"
+    print("  OK: projection scales as sec(theta), v-independent")
+
+
+def check_theta0_ray_convention(Nu=48, ulim=2.0, thetas=(15, 30, 45),
+                                phis=(0, 37, 90)):
+    """(A2) The tilted forward model on a genuinely 3-D phantom, validated
+    against a brute-force numerical ray integral.
+    """
+    print("\n" + "=" * 74)
+    print("Tilted forward model vs brute-force ray integral (3-D phantom)")
+    print("=" * 74)
+    grid_uv = RegularGrid.linspace((-ulim, ulim, Nu), (-ulim, ulim, Nu))
+    ell = ellipsoid_phantom()
+    iu_u = [Nu // 2, Nu // 3, 2 * Nu // 3]
+    iv_u = [Nu // 2, 2 * Nu // 3, Nu // 3]
+    worst = 0.0
+    for th in thetas:
+        for ph in phis:
+            Y = proj3(grid_uv, ell, Angle(deg=th), Angle(deg=ph))
+            hi = 0.05 * np.abs(Y).max()
+            for iu, iv in zip(iu_u, iv_u):
+                u = grid_uv.axis_x.centers[iu]
+                v = grid_uv.axis_y.centers[iv]
+                num = numeric_ray_integral(ell, th, ph, u, v)
+                ana = Y[iv, iu]
+                if max(abs(ana), abs(num)) < hi:
+                    continue
+                err = abs(ana - num) / max(abs(num), hi)
+                worst = max(worst, err)
+    print(f"  worst relative mismatch over theta in {thetas}, phi in {phis}: "
+          f"{worst:.2e}")
+    assert worst < 1e-3, "analytic tilt projection disagrees with ray integral"
+    print("  OK: analytic and numerical projections agree")
+
+
+def check_theta0_amplitude(n=24, Nu=48, ulim=2.0, Nphi=64,
+                           thetas=(0, 15, 30, 45)):
+    """(B) The cos(theta0) factor.
+
+    On the z-invariant phantom the data are complete at every tilt, so the
+    reconstruction must be *theta-independent*.  The pre-fix code returned
+    exactly sec(theta) times the correct answer (the counterfactual column
+    below), which is a pure amplitude error and therefore invisible to any
+    phi-only convergence study.
+    """
+    print("\n" + "=" * 74)
+    print("Reconstruction amplitude vs detector tilt (z-invariant phantom)")
+    print("=" * 74)
+    axes3 = Axes3.linspace((-1, 1, n), (-1, 1, n), (-1, 1, n))
+    grid_uv = RegularGrid.linspace((-ulim, ulim, Nu), (-ulim, ulim, Nu))
+    phi_axis = AngleRegularAxis.linspace(Angle(deg=0), Angle(deg=180), Nphi,
+                                         endpoint=False)
+    ell = cylinder_phantom()
+    truth = eval_ellipsoids(ell, axes3)
+    print(f"{'theta':>6} {'rel.L2':>10} {'alpha':>10} {'max|recon|':>11} "
+          f"{'|sec-1| pref':>12} {'max|recon| pref':>16}")
+    alphas, errs = [], []
+    for th in thetas:
+        theta = Angle(deg=th)
+        sino = [proj3(grid_uv, ell, theta, Angle(deg=ph))
+                for ph in phi_axis.deg.centers]
+        r = fbp3_theta0(axes3, grid_uv, phi_axis, sino, theta0=theta)
+        alpha = np.sum(r * truth) / np.sum(truth * truth)
+        rel = rel_l2(r, truth)
+        # exactly the pre-fix behaviour, which omitted the cos(theta0):
+        r_pre = r / np.cos(theta.rad)
+        alphas.append(alpha)
+        errs.append(rel)
+        print(f"{th:>6} {rel:>10.5f} {alpha:>10.5f} {np.abs(r).max():>11.5f} "
+              f"{abs(1 / np.cos(theta.rad) - 1):>12.3f} "
+              f"{np.abs(r_pre).max():>16.5f}")
+    spread = (max(alphas) - min(alphas)) / np.mean(alphas)
+    print(f"  alpha spread over theta = {spread:.2e}; "
+          f"rel.L2 spread = {max(errs) - min(errs):.2e}")
+    assert spread < 1e-2, "reconstruction amplitude still varies with theta"
+    assert max(errs) - min(errs) < 1e-2, "reconstruction error varies with theta"
+    print("  OK: cos(theta0) factor present -- amplitude is theta-independent")
+
+
+def check_theta0_vs_2d_fbp(n=24, Nu=48, ulim=2.0, Nphi=64,
+                           thetas=(0, 15, 30, 45)):
+    """(C) Decisive check for the tilted case.
+
+    A z-invariant phantom's tilted projection is sec(theta) times its
+    untilted one and still v-independent, so an exact tilted inversion must
+    reproduce the *2-D* FBP of the cross-section at every tilt.  The
+    reference here comes from the analytic 2-D Radon transform of a 2-D
+    ``Ellipse`` -- no 3-D code and no cos(theta) involved -- so agreement is
+    impossible to fake.  The residual (~1e-3) is the forward model's own
+    v-independence error, not a reconstruction error.
+    """
+    print("\n" + "=" * 74)
+    print("Tilted 3-D recon of a z-invariant phantom vs independent 2-D FBP")
+    print("=" * 74)
+    axes3 = Axes3.linspace((-1, 1, n), (-1, 1, n), (-1, 1, n))
+    grid_uv = RegularGrid.linspace((-ulim, ulim, Nu), (-ulim, ulim, Nu))
+    phi_axis = AngleRegularAxis.linspace(Angle(deg=0), Angle(deg=180), Nphi,
+                                         endpoint=False)
+    ell = cylinder_phantom()
+
+    grid_y = RegularGrid(RegularAxis.linspace(0, 180, Nphi, endpoint=False),
+                         grid_uv.axis_x)
+    grid_xy = RegularGrid(axes3.axis_x, axes3.axis_y)
+    S2d = Ellipse(1.0, CYLINDER_AB[0], CYLINDER_AB[1], 0.0, 0.0,
+                  Angle(deg=0)).sinogram(grid_y)
+    ref2d = fbp(grid_xy, grid_y, S2d)
+
+    print(f"{'theta':>6} {'rel.L2 vs 2-D FBP':>19} {'z-spread/max':>13} "
+          f"{'pre-fix rel.L2':>15} {'pre-fix max|rec|':>17}")
+    for th in thetas:
+        theta = Angle(deg=th)
+        sino = [proj3(grid_uv, ell, theta, Angle(deg=ph))
+                for ph in phi_axis.deg.centers]
+        r = fbp3_theta0(axes3, grid_uv, phi_axis, sino, theta0=theta)
+        ref = np.broadcast_to(ref2d, r.shape)
+        d = rel_l2(r, ref)
+        dz = np.max(np.ptp(r, axis=0)) / np.max(np.abs(r))
+        r_pre = r / np.cos(theta.rad)
+        print(f"{th:>6} {d:>19.3e} {dz:>13.2e} {rel_l2(r_pre, ref):>15.3f} "
+              f"{np.abs(r_pre).max():>17.5f}")
+        assert d < 2e-3, f"tilted recon does not match 2-D FBP (theta={th})"
+        assert dz < 2e-3, f"tilted recon of a z-invariant object varies with z"
+        if th > 0:
+            assert rel_l2(r_pre, ref) > 0.03, \
+                "counterfactual does not show the sec(theta) overshoot"
+    print("  OK: exact at every tilt; the omitted cos(theta0) would inflate "
+          "it by sec(theta0)")
+
+
+def check_theta0_missing_cone(n=24, Nu=48, ulim=2.0,
+                              Nphi_list=(16, 32, 64, 128),
+                              thetas=(0, 15, 30, 45)):
+    """(D) The missing cone: a genuinely 3-D object at tilt.
+
+    Increasing the number of projections must NOT remove the error once the
+    plateau is reached, and the plateau must grow with theta, tracking the
+    energy fraction of the never-sampled double cone.
+    """
+    print("\n" + "=" * 74)
+    print("Missing cone: 3-D ellipsoid reconstruction vs detector tilt")
+    print("=" * 74)
+    axes3 = Axes3.linspace((-1, 1, n), (-1, 1, n), (-1, 1, n))
+    grid_uv = RegularGrid.linspace((-ulim, ulim, Nu), (-ulim, ulim, Nu))
+    ell = ellipsoid_phantom()
+    truth = eval_ellipsoids(ell, axes3)
+    print("  " + f"{'theta':>6}" + "".join(f"{'Nphi=' + str(k):>11}"
+                                           for k in Nphi_list)
+          + f"{'plateau':>11}{'cone frac':>11}{'sqrt(frac)':>12}")
+    plateau = {}
+    for th in thetas:
+        theta = Angle(deg=th)
+        row = []
+        for Np in Nphi_list:
+            pa = AngleRegularAxis.linspace(Angle(deg=0), Angle(deg=180), Np,
+                                           endpoint=False)
+            sino = [proj3(grid_uv, ell, theta, Angle(deg=ph))
+                    for ph in pa.deg.centers]
+            r = fbp3_theta0(axes3, grid_uv, pa, sino, theta0=theta)
+            row.append(rel_l2(r, truth))
+        frac = missing_cone_energy_fraction(truth, th)
+        plateau[th] = row[-1]
+        print("  " + f"{th:>6}" + "".join(f"{v:>11.5f}" for v in row)
+              + f"{row[-1] - row[-2]:>11.1e}{frac:>11.5f}"
+              f"{np.sqrt(frac):>12.4f}")
+        assert abs(row[-1] - row[-2]) < 1e-3, \
+            f"error is still decreasing at theta={th} -- not a plateau"
+        if frac > 1e-3:
+            # The unmeasured cone energy shows up (to within a small factor)
+            # as the reconstruction error: a quantitative account of the
+            # plateau.
+            assert 0.5 * np.sqrt(frac) < row[-1] < 2.0 * np.sqrt(frac), \
+                f"plateau does not track the missing-cone energy at theta={th}"
+    vals = [plateau[th] for th in thetas]
+    assert all(vals[i] < vals[i + 1] for i in range(len(vals) - 1)), \
+        "error does not increase with detector tilt"
+    print("  OK: error plateaus with more projections, grows with theta, and "
+          "tracks the missing-cone energy fraction")
+    return thetas, plateau, Nphi_list
+
+
+def check_theta0_continuity(n=24, Nu=48, ulim=2.0, Nphi=64,
+                            thetas_deg=(0.001, 0.1, 1.0)):
+    """(E) Continuity at theta -> 0, and the theta = 0 regression."""
+    print("\n" + "=" * 74)
+    print("Continuity of the tilted reconstruction as theta -> 0")
+    print("=" * 74)
+    axes3 = Axes3.linspace((-1, 1, n), (-1, 1, n), (-1, 1, n))
+    grid_uv = RegularGrid.linspace((-ulim, ulim, Nu), (-ulim, ulim, Nu))
+    phi_axis = AngleRegularAxis.linspace(Angle(deg=0), Angle(deg=180), Nphi,
+                                         endpoint=False)
+    ell = ellipsoid_phantom()
+    sino0 = [proj3(grid_uv, ell, Angle(deg=0), Angle(deg=ph))
+             for ph in phi_axis.deg.centers]
+    r0 = fbp3_theta0(axes3, grid_uv, phi_axis, sino0, theta0=Angle(deg=0))
+    rates = []
+    for th in thetas_deg:
+        theta = Angle(deg=th)
+        sino = [proj3(grid_uv, ell, theta, Angle(deg=ph))
+                for ph in phi_axis.deg.centers]
+        r = fbp3_theta0(axes3, grid_uv, phi_axis, sino, theta0=theta)
+        d = rel_l2(r, r0)
+        rates.append(d / th)
+        print(f"  theta = {th:>6g} deg   rel.L2(r_theta, r_0) = {d:.3e}"
+              f"   rel.L2/theta = {d / th:.4f} per deg")
+    assert max(rates) < 0.1, "tilted recon does not approach the untilted one"
+    assert max(rates) / min(rates) < 2.0, \
+        "the approach to theta = 0 is not linear in theta"
+    print("  OK: the tilt enters linearly and vanishes as theta -> 0")
 
 
 # ==========================================================================
@@ -344,6 +699,19 @@ def _plot_all(plot):
             a.set_title(f"2-D FBP, Na={Na}")
         fig.tight_layout()
         fig.savefig(os.path.join(outdir, "2d_recon.png"), dpi=110)
+
+    # tilted detector: the missing-cone plateau
+    if "theta0-plateau" in plot:
+        thetas, plateau, Nphi_list = plot["theta0-plateau"]
+        fig, ax = plt.subplots(figsize=(5.5, 4))
+        ax.semilogy(thetas, [plateau[t] for t in thetas], "o-")
+        ax.set_xlabel(r"detector tilt $\theta_0$ (deg)")
+        ax.set_ylabel(f"rel. L2 error (Nphi = {Nphi_list[-1]})")
+        ax.set_title("Missing cone: error grows with tilt,\nand does not fall "
+                     "with more projections")
+        ax.grid(True, which="both", alpha=0.3)
+        fig.tight_layout()
+        fig.savefig(os.path.join(outdir, "theta0_plateau.png"), dpi=110)
 
     # one 3-D case
     for key, val in plot.items():
@@ -396,4 +764,19 @@ if __name__ == "__main__":
     # And confirm the shipped filter is the correct one.
     check_library_filter()
 
+    # ---- theta0 != 0: the tilted detector --------------------------------
+    check_theta0_forward_model()
+    check_theta0_ray_convention()
+    check_theta0_amplitude()
+    check_theta0_vs_2d_fbp()
+    plot["theta0-plateau"] = check_theta0_missing_cone()
+    check_theta0_continuity()
+
+    # The same behaviour in the tabular form used above.
+    run_3d([16, 64], n=24, Nu=48, filter_name="abs(f_u) (correct)",
+           phantom="cylinder", theta_deg=45)
+    run_3d([16, 64], n=24, Nu=48, filter_name="abs(f_u) (correct)",
+           phantom="ellipsoid", theta_deg=45, plot=plot)
+
     _plot_all(plot)
+    print("\nAll checks passed.")
