@@ -11,7 +11,7 @@ def ramp_filter(axis_omega):
     return np.abs(axis_omega.Hz().centers)
 
 
-class BackProjector():
+class BackProjector:
     """
     """
     def __init__(self, grid, grid_y, radon_matrix=None, **kwds):

@@ -2,10 +2,9 @@ from dataclasses import dataclass
 
 import numpy as np
 from scipy.spatial.transform import Rotation
-import vtk
 
+from pyinverse._optional import optional_import
 from pyinverse.angle import Angle
-
 
 """
 Take a look here:
@@ -45,7 +44,7 @@ def ellipsoid_proj(ellipsoid, theta, phi, grid, Y=None):
     |-------+------+-----+-----+-----|
     """
     if Y is None:
-        Y = np.zeros((grid.shape))
+        Y = np.zeros(grid.shape)
     # Problem 4.15 from Fessler's notes
     e_vec0 = np.array([-phi.sin * theta.cos,
                         phi.cos * theta.cos,
@@ -86,8 +85,8 @@ def ellipsoid_proj(ellipsoid, theta, phi, grid, Y=None):
     B = np.einsum('i,ij->j', M_e, M_p)
     C = np.einsum('ij,ij->j', M_p, M_p) - 1
 
-    I = B**2 >= A * C
-    Y.flat[I] += 2/A * np.sqrt(B[I]**2 - A*C[I]) * ellipsoid.rho
+    inside = B**2 >= A * C
+    Y.flat[inside] += 2/A * np.sqrt(B[inside]**2 - A*C[inside]) * ellipsoid.rho
 
     return Y
 
@@ -110,7 +109,8 @@ def ellipsoid_ft(ellipsoid, kx, ky, kz, fast=True, optimize=False):
     else:
         #kxyz = np.array([kx, ky, kz])
         #Z = list(zip(*[x.flat for x in kxyz[..., :, :, :]]))
-        #kx_tilde, ky_tilde, kz_tilde = [np.array(x).reshape(kx.shape) for x in zip(*ellipsoid.R.apply(Z, inverse=True))]
+        # kx_tilde, ky_tilde, kz_tilde = [np.array(x).reshape(kx.shape)
+        #                                 for x in zip(*ellipsoid.R.apply(Z, inverse=True))]
         Z = ellipsoid.R.apply(np.vstack((kx.flat, ky.flat, kz.flat)).T, inverse=True)
         kx_tilde = Z[:, 0].reshape(kx.shape)
         ky_tilde = Z[:, 1].reshape(kx.shape)
@@ -121,7 +121,9 @@ def ellipsoid_ft(ellipsoid, kx, ky, kz, fast=True, optimize=False):
     out = np.empty_like(kx, dtype=complex)
     out[I0] = ellipsoid.rho * (4/3) * np.pi * ellipsoid.a * ellipsoid.b * ellipsoid.c
     J = ~I0
-    out[J] = ellipsoid.rho * ellipsoid.a * ellipsoid.b * ellipsoid.c * (np.sin(2 * np.pi * K[J]) - 2 * np.pi * K[J] * np.cos(2 * np.pi * K[J])) / (2 * np.pi**2 * K[J]**3)
+    out[J] = (ellipsoid.rho * ellipsoid.a * ellipsoid.b * ellipsoid.c
+              * (np.sin(2 * np.pi * K[J]) - 2 * np.pi * K[J] * np.cos(2 * np.pi * K[J]))
+              / (2 * np.pi**2 * K[J]**3))
     out *= P
     return out
 
@@ -173,14 +175,17 @@ class Ellipsoid:
         p = np.stack((x, y, z)) - np.array([self.x0, self.y0, self.z0])[:, np.newaxis]
         z = self.R.apply(p.T, inverse=True)
         M_p = M @ z.T
-        I = np.einsum('ij,ij->j', M_p, M_p) <= 1
-        Y[I] = self.rho
+        inside = np.einsum('ij,ij->j', M_p, M_p) <= 1
+        Y[inside] = self.rho
         return Y
 
 
     def actor(self):
         """
+        Return a VTK actor for the ellipsoid.  Requires the optional ``viz``
+        dependency (``pip install pyinverse[viz]``).
         """
+        vtk = optional_import('vtk', extra='viz', purpose='Ellipsoid.actor')
         # ellipsoid
         ellipsoid = vtk.vtkParametricEllipsoid()
         ellipsoid.SetXRadius(self.a)

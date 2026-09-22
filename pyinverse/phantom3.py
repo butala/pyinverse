@@ -1,13 +1,11 @@
 import numpy as np
 import scipy as sp
-import matplotlib.pylab as plt
-import vtk
 
+from ._optional import optional_import
 from .angle import Angle
-from .ellipsoid import Ellipsoid
-from .axis import RegularAxis
 from .axes import RegularAxes3
-
+from .axis import RegularAxis
+from .ellipsoid import Ellipsoid
 
 """
 The ELLIPSOID_MATRIX copies from this project: https://github.com/tsadakane/sl3d
@@ -134,7 +132,9 @@ class Phantom3:
                  key='toft_schabel'):
         """
         """
-        self._ellipsoids = [Ellipsoid(*(list(row[:6]) + [Angle(deg=x) for x in row[6:9]] + [row[9]])) for row in ellipsoid_matrix[key]]
+        self._ellipsoids = [
+            Ellipsoid(*(list(row[:6]) + [Angle(deg=x) for x in row[6:9]] + [row[9]]))
+            for row in ellipsoid_matrix[key]]
 
     def __call__(self, x, y, z):
         """
@@ -157,7 +157,13 @@ class Phantom3:
 
     def actor(self, opacity=0.2, cmap='viridis'):
         """
+        Return a VTK assembly of the phantom's ellipsoids.  Requires the
+        optional ``viz`` dependency and, for *cmap*, ``matplotlib``
+        (``pip install pyinverse[viz]``).
         """
+        plt = optional_import('matplotlib.pylab', extra='viz',
+                              purpose='Phantom3.actor')
+        vtk = optional_import('vtk', extra='viz', purpose='Phantom3.actor')
         cm = plt.get_cmap(cmap)
         assembly = vtk.vtkAssembly()
         for e in self._ellipsoids:
@@ -171,7 +177,7 @@ class Phantom3:
         """
         """
         if Y is None:
-            Y = np.zeros((grid.shape))
+            Y = np.zeros(grid.shape)
         for e in self._ellipsoids:
             e.proj(theta, phi, grid, Y=Y)
         return Y

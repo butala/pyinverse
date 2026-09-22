@@ -8,7 +8,7 @@ class Angle:
         """
         """
         if rad is None and deg is None:
-            assert False
+            raise AssertionError()
         if rad is None:
             self.deg = deg % 360.
             self.rad = np.radians(deg) % (2*np.pi)
@@ -37,7 +37,7 @@ class Angle:
     def __add__(self, other):
         try:
             return Angle(deg=self.deg + other.deg)
-        except:
+        except Exception:
             return Angle(rad=self.rad + other.rad)
 
     def __radd__(self, other):
@@ -46,7 +46,7 @@ class Angle:
     def __sub__(self, other):
         try:
             return Angle(deg=self.deg - other.deg)
-        except:
+        except Exception:
             return Angle(rad=self.rad - other.rad)
 
     def __rsub__(self, other):

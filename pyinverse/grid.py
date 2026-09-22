@@ -1,10 +1,8 @@
-import imageio
-from tqdm import tqdm
 import numpy as np
 import scipy as sp
 
-
-from .axis import Order, RegularAxis, FFTRegularAxis, RFFTRegularAxis
+from ._optional import optional_import, tqdm
+from .axis import FFTRegularAxis, Order, RegularAxis, RFFTRegularAxis
 from .rect import srect_2D_proj
 
 
@@ -29,7 +27,15 @@ class RegularGrid:
 
     @classmethod
     def from_image(cls, im_fname):
-        """ ??? """
+        """Read a 2-D image file and return ``(grid, array)``.
+
+        Requires the optional ``imageio`` dependency
+        (``pip install pyinverse[image]``).  The grid is a unit-spacing grid
+        with ``x0 = 0``; use :meth:`scale` (or construct a grid explicitly) if
+        the pixels have physical size.
+        """
+        imageio = optional_import('imageio', extra='image',
+                                  purpose='RegularGrid.from_image')
         x = imageio.imread(im_fname)
         assert x.ndim == 2
         return cls.image(x), x
@@ -62,12 +68,12 @@ class RegularGrid:
         try:
             return self._borders
         except AttributeError:
-            if self.axis_x._order == Order.INCREASING and self.axis_y._order == Order.INCREASING:
-                self._borders = np.meshgrid(self.axis_x.borders, self.axis_y.borders)
-                return self.borders
-            else:
-                # What to do if an axis is in decreasing order?
-                assert False
+            pass
+        if self.axis_x._order == Order.INCREASING and self.axis_y._order == Order.INCREASING:
+            self._borders = np.meshgrid(self.axis_x.borders, self.axis_y.borders)
+            return self.borders
+        # What to do if an axis is in decreasing order?
+        raise AssertionError()
 
     @property
     def shape(self):
@@ -189,7 +195,7 @@ class RegularGrid:
             elif xform == 'S':
                 a = RegularAxis(self_axis.x0, self_axis.T*self_axis.N/n, n)
             else:
-                assert False
+                raise AssertionError()
             grid_freq_axis.append(a)
         if real:
             return RealFreqRegularGrid(grid_freq_axis[1], grid_freq_axis[0], self)
@@ -226,7 +232,7 @@ class RegularGrid:
             p = np.exp(-1j*grid_freq.axis_x.centers*self.axis_x.x0)
             X_spectrum *= np.atleast_2d(p) * self.axis_x.T
         else:
-            assert False
+            raise AssertionError()
         return grid_freq, X_spectrum
 
 
@@ -239,6 +245,9 @@ class RegularGrid:
         given in degrees if `deg=True`. Return an array (shape = # of
         projection samples x # of angles).
 
+        This is the straightforward per-pixel loop; it is a reference for
+        :func:`pyinverse.radon.radon_matrix`, which computes exactly the same
+        operator as a sparse matrix (and is much faster for repeated use).
         """
         assert self.shape == A.shape
         if deg:
@@ -253,7 +262,9 @@ class RegularGrid:
             sin_theta = np.sin(theta_k)
             for j, a in enumerate(self.axis_x.centers):
                 for i, b in enumerate(self.axis_y.centers):
-                    proj[:, k] += srect_2D_proj([theta_k], sinogram_grid.axis_y.centers - a*cos_theta - b*sin_theta, 1/T_x, 1/T_y).flat * A[i, j]
+                    proj[:, k] += srect_2D_proj(
+                        [theta_k], sinogram_grid.axis_y.centers - a*cos_theta - b*sin_theta,
+                        1/T_x, 1/T_y).flat * A[i, j]
         return proj
 
 
@@ -286,7 +297,7 @@ class FreqRegularGridBase(RegularGrid):
             p = np.exp(1j*self.axis_x.centers*self.axis_x.axis_t.x0)
             x = self._IFFT(X_spectrum * np.atleast_2d(p) / self.grid_s.axis_x.T, n=n, axis=1)
         else:
-            assert False
+            raise AssertionError()
 
         x = x[:self.grid_s.axis_y.N, :self.grid_s.axis_x.N]
         return self.grid_s, x

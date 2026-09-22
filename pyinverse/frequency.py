@@ -10,7 +10,7 @@ class Frequency:
         w: rad/s (omega)
         """
         if f is None and w is None:
-            assert False
+            raise AssertionError()
         if w is None:
             self.f = f
             self.w = 2 * np.pi * f
@@ -39,7 +39,7 @@ class Frequency:
     def __add__(self, other):
         try:
             return Frequency(f=self.f + other.f)
-        except:
+        except Exception:
             return Frequency(w=self.w + other.w)
 
     def __radd__(self, other):
@@ -48,7 +48,7 @@ class Frequency:
     def __sub__(self, other):
         try:
             return Frequency(f=self.f - other.f)
-        except:
+        except Exception:
             return Frequency(w=self.w - other.w)
 
     def __rsub__(self, other):

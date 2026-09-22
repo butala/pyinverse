@@ -1,7 +1,7 @@
 import numpy as np
 import scipy as sp
-from tqdm.contrib import tenumerate
 
+from ._optional import tenumerate
 from .angle import Angle
 
 
@@ -51,7 +51,9 @@ def backproject3(theta, phi, axes3, grid_uv, X, method='linear'):
     u_backproject = uv_backproject[0, :, :, :]
     v_backproject = uv_backproject[1, :, :, :]
 
-    interp2d = sp.interpolate.RegularGridInterpolator((grid_uv.axis_y.centers, grid_uv.axis_x.centers), X, method=method, bounds_error=True)
+    interp2d = sp.interpolate.RegularGridInterpolator(
+        (grid_uv.axis_y.centers, grid_uv.axis_x.centers), X,
+        method=method, bounds_error=True)
 
     X_backproject = interp2d(np.array([v_backproject.flatten(), u_backproject.flatten()]).T)
     X_backproject.shape = axes3.shape
@@ -59,7 +61,13 @@ def backproject3(theta, phi, axes3, grid_uv, X, method='linear'):
     return X_backproject
 
 
-def fbp3_theta0(axes3, grid_uv, phi_axis, sinogram3, radon_matrices=None, theta0=Angle(deg=0)):
+#: Default detector tilt; a module-level singleton so that the listener-free
+#: default argument cannot be mutated by a caller.
+_THETA0_UNTILTED = Angle(deg=0)
+
+
+def fbp3_theta0(axes3, grid_uv, phi_axis, sinogram3, radon_matrices=None,
+                theta0=_THETA0_UNTILTED):
     """
     Filtered backprojection for a planar 2-D detector rotating about z.
 

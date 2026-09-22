@@ -10,8 +10,8 @@ This is from a course he taught: https://web.eecs.umich.edu/~fessler/course/516/
 def rect(t):
     """Rectangle function."""
     f = np.zeros_like(t)
-    I = np.abs(t) < 0.5
-    f[I] = 1
+    inside = np.abs(t) < 0.5
+    f[inside] = 1
     f[np.abs(t) == 0.5] = 0.5
     return f
 
@@ -27,11 +27,11 @@ def srect_conv_srect(t, a, b):
     if a < b:
         return srect_conv_srect(t, b, a)
     f = np.zeros_like(t)
-    I1 = np.abs(t) < (a+b)/(2*a*b)
-    I2 = np.abs(t) > (a-b)/(2*a*b)
-    I = I1 & I2
-    f[I] = (a+b)/(2*a*b) - np.abs(t[I])
-    f[~I2] = 1/a
+    lead = np.abs(t) < (a+b)/(2*a*b)
+    ramp = np.abs(t) > (a-b)/(2*a*b)
+    inside = lead & ramp
+    f[inside] = (a+b)/(2*a*b) - np.abs(t[inside])
+    f[~ramp] = 1/a
     return f
 
 
@@ -52,13 +52,13 @@ def srect_2D_proj(theta, t, a, b):
             p = srect(-t, b) / a
         else:
             if theta_k < np.pi/2:
-                sign = 1
+                pass
             elif theta_k < np.pi:
-                sign = -1
+                pass
             elif theta_k < 3*np.pi / 2:
-                sign = 1
+                pass
             else:
-                sign = -1
+                pass
             abs_cos = np.abs(np.cos(theta_k))
             abs_sin = np.abs(np.sin(theta_k))
             p = 1/(abs_cos * abs_sin) * srect_conv_srect(t, a/abs_cos, b/abs_sin)
@@ -82,7 +82,9 @@ def srect_2D_proj_ramp(theta, t, a, b):
         elif theta_k == np.pi/2 or theta_k == 3*np.pi/2:
             p = -2*a*b/np.pi**2 / (4*t**2 - b**2)
         else:
-            p = 1/(2*np.pi**2*np.cos(theta_k)*np.sin(theta_k)) * np.log(np.abs((t**2 - ((a*np.cos(theta_k)+b*np.sin(theta_k))/2)**2)/(t**2 - ((a*np.cos(theta_k)-b*np.sin(theta_k))/2)**2)))
+            p = (1/(2*np.pi**2*np.cos(theta_k)*np.sin(theta_k))
+                 * np.log(np.abs((t**2 - ((a*np.cos(theta_k)+b*np.sin(theta_k))/2)**2)
+                                 /(t**2 - ((a*np.cos(theta_k)-b*np.sin(theta_k))/2)**2))))
         P[:, k] = p
     return P
 
@@ -91,7 +93,8 @@ def rect_conv_rect(x, a=1, b=1):
     """Scaled rect convovled wtih scaled rect (CHECK IF THIS DUPLICATES srect_conv_srect)."""
     assert a > 0
     assert b > 0
-    return step1(x + 1/(2*a) + 1/(2*b)) - step1(x - 1/(2*a) + 1/(2*b)) - step1(x + 1/(2*a) - 1/(2*b)) + step1(x - 1/(2*a) - 1/(2*b))
+    return (step1(x + 1/(2*a) + 1/(2*b)) - step1(x - 1/(2*a) + 1/(2*b))
+            - step1(x + 1/(2*a) - 1/(2*b)) + step1(x - 1/(2*a) - 1/(2*b)))
 
 
 def step(x):
@@ -125,7 +128,8 @@ def rtri(x, a, b):
     """Convolution of rect(ax) with tri(bx)."""
     assert a > 0
     assert b > 0
-    return b*(step2(x + 1/(2*a) + 1/b) - 2*step2(x + 1/(2*a)) + step2(x + 1/(2*a) - 1/b) - step2(x - 1/(2*a) + 1/b) + 2*step2(x - 1/(2*a)) - step2(x - 1/(2*a) - 1/b))
+    return b*(step2(x + 1/(2*a) + 1/b) - 2*step2(x + 1/(2*a)) + step2(x + 1/(2*a) - 1/b)
+              - step2(x - 1/(2*a) + 1/b) + 2*step2(x - 1/(2*a)) - step2(x - 1/(2*a) - 1/b))
 
 
 def radon_rect(theta, r, a, b):
@@ -136,7 +140,7 @@ def radon_rect(theta, r, a, b):
     c_t = np.cos(theta)
     s_t = np.sin(theta)
     if np.allclose(abs(a*c_t), abs(b*s_t)):
-        return np.hypot(a, b) * tri*(r/((a*b)/np.hypot(a, b)))
+        return np.hypot(a, b) * tri(r/((a*b)/np.hypot(a, b)))
     elif abs(theta) in [0, np.pi]:
         return b * rect(r/a)
     elif abs(theta) in [np.pi/2, 3*np.pi/2]:
@@ -144,12 +148,28 @@ def radon_rect(theta, r, a, b):
     else:
         d_max = (abs(a*c_t) + abs(b*s_t)) / 2
         d_break = abs(abs(a*c_t) - abs(b*s_t)) / 2
-        l_max = abs(a*b)/max(abs(a*c_t), abs(b*s_t))
         return 1/abs(c_t*s_t) * (d_max*tri(r/d_max) - d_break*tri(r/d_break))
 
 
 def rect_conv_radon_rect(theta, r, a, b, alpha):
-    """Based off of Fessler (3.2.40)"""
+    """Strip integral of the pixel's line-integral projection.
+
+    Fessler (3.2.40).  With ``p0(t) = srect_2D_proj(theta, t, 1/a, 1/b)[:, 0]``
+    the line integral of the pixel ``srect(x/a) srect(y/b)``, this returns
+
+        ``q(t) = \\int p0(t - tau) rect(alpha * tau) d tau``
+
+    i.e. the response of a detector element that integrates the projection over
+    a beam of width ``1/alpha``.  Note that *a* and *b* are the pixel's
+    **physical** widths, the opposite of :func:`srect_2D_proj`'s convention,
+    where the arguments are the *scales* (reciprocal widths); *alpha* is
+    likewise the reciprocal beam width.  The result has compact support of
+    width ``(a + b + 1/alpha) / 2`` at most, and its integral over the detector
+    axis is the pixel area (a detector beam preserves the mass).
+
+    ``tests/test_radon_calibration.py`` pins this against a numerical
+    convolution of :func:`srect_2D_proj`.
+    """
     assert a > 0
     assert b > 0
     assert alpha > 0
@@ -157,13 +177,12 @@ def rect_conv_radon_rect(theta, r, a, b, alpha):
     c_t = np.cos(theta)
     s_t = np.sin(theta)
     if np.allclose(abs(a*c_t), abs(b*s_t)):
-        return np.hypot(a, b) * rtri(r, 1/alpha, 1/((a*b)/np.hypot(a, b)))
+        return np.hypot(a, b) * rtri(r, alpha, 1/((a*b)/np.hypot(a, b)))
     elif abs(theta) in [0, np.pi]:
-        return b * rect_conv_rect(r, 1/a, 1/alpha)
+        return b * rect_conv_rect(r, 1/a, alpha)
     elif abs(theta) in [np.pi/2, 3*np.pi/2]:
-        return a * rect_conv_rect(r, 1/b, 1/alpha)
+        return a * rect_conv_rect(r, 1/b, alpha)
     else:
         d_max = (abs(a*c_t) + abs(b*s_t)) / 2
         d_break = abs(abs(a*c_t) - abs(b*s_t)) / 2
-        l_max = abs(a*b)/max(abs(a*c_t), abs(b*s_t))
-        return 1/abs(c_t*s_t) * (d_max*rtri(r, 1/alpha, 1/d_max) - d_break*rtri(r, 1/alpha, 1/d_break))
+        return 1/abs(c_t*s_t) * (d_max*rtri(r, alpha, 1/d_max) - d_break*rtri(r, alpha, 1/d_break))

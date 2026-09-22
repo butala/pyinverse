@@ -1,13 +1,17 @@
-from itertools import product
+"""Regular grids in 3-D, and the VTK plumbing to display them.
 
-import vtk
+Importing this module requires only NumPy and SciPy.  The rendering code
+(:meth:`RegularAxes3.actor`, :meth:`RegularAxes3.volume`,
+:meth:`RegularAxes3.voxel_actor`) resolves ``vtk`` and ``pyviz3d`` lazily, at
+the point of use, so the numerical core works in a headless environment.
+"""
+
 import numpy as np
 import scipy
 
-from pyviz3d.util import cmap2color_transfer_function
-from pyviz3d.viz import Renderer
+from pyinverse._optional import optional_import
 
-from .axis import RegularAxis, Order
+from .axis import Order, RegularAxis
 
 
 class RegularAxes3:
@@ -46,10 +50,12 @@ class RegularAxes3:
         return cls(*(RegularAxis.linspace(*x) for x in [linspace_x, linspace_y, linspace_z]))
 
     def __repr__(self):
-        return f'<{self.__class__.__name__} <axis_x: {repr(self.axis_x)}> <axis_y: {repr(self.axis_y)}> <axis_z {repr(self.axis_z)}>>'
+        return (f'<{self.__class__.__name__} <axis_x: {repr(self.axis_x)}> '
+                f'<axis_y: {repr(self.axis_y)}> <axis_z {repr(self.axis_z)}>>')
 
     def __str__(self):
-        return f'{self.__class__.__name__}:\naxis x: {str(self.axis_x)}\naxis y: {str(self.axis_y)}\naxis z: {str(self.axis_z)}'
+        return (f'{self.__class__.__name__}:\naxis x: {str(self.axis_x)}'
+                f'\naxis y: {str(self.axis_y)}\naxis z: {str(self.axis_z)}')
 
     @property
     def shape(self):
@@ -141,7 +147,9 @@ class RegularAxes3:
         """
         """
         assert x.shape == self.shape
-        assert self.axis_x._order == Order.INCREASING and self.axis_y._order == Order.INCREASING and self.axis_z._order == Order.INCREASING
+        assert (self.axis_x._order == Order.INCREASING
+                and self.axis_y._order == Order.INCREASING
+                and self.axis_z._order == Order.INCREASING)
         if s is None:
             s = self.shape
         elif s < self.shape:
@@ -165,14 +173,18 @@ class RegularAxes3:
     def _vtk_plot_setup(self, X, vmin=None, vmax=None, cmap='viridis', blank_nan=False):
         """
         """
+        vtk = optional_import('vtk', extra='viz', purpose='RegularAxes3 rendering')
+        cmap2color_transfer_function = optional_import(
+            'pyviz3d.util', extra='viz',
+            purpose='RegularAxes3 rendering').cmap2color_transfer_function
         try:
-            self._vtk_grid
+            self._vtk_grid  # noqa: B018 -- probe for the cached grid
             if blank_nan or self._vtk_grid.HasAnyBlankCells():
                 # Do not reuse self._vtk_grid if cells have been
                 # blanked. There will be a clash. Use a RegularAxes3
                 # with the same parameters the actor instead (or come
                 # up with a clever way not have the clash issue).
-                assert False
+                raise AssertionError()
         except AttributeError:
             if blank_nan:
                 self._vtk_grid = vtk.vtkUniformGrid()
@@ -202,7 +214,12 @@ class RegularAxes3:
 
 
     def actor(self, X, vmin=None, vmax=None, cmap='viridis', blank_nan=False):
-        """ ??? """
+        """Return a VTK actor for the 3-D array *X* on this grid.
+
+        Requires the optional ``viz`` dependency
+        (``pip install pyinverse[viz]``).
+        """
+        vtk = optional_import('vtk', extra='viz', purpose='RegularAxes3.actor')
         vmin, vmax = self._vtk_plot_setup(X, vmin=vmin, vmax=vmax, cmap=cmap, blank_nan=blank_nan)
 
         # Create a mapper and actor
@@ -222,8 +239,12 @@ class RegularAxes3:
         Create a VTK actor for the (*ijk*)th voxel element using
         web color *color*. Note that `i` corresponds to the z
         dimension, `j` to the y dimension, and `k` to the x dimension.
+        Requires the optional ``viz`` dependency
+        (``pip install pyinverse[viz]``).
         """
         # https://en.wikipedia.org/wiki/Web_colors
+        vtk = optional_import('vtk', extra='viz',
+                              purpose='RegularAxes3.voxel_actor')
         i, j, k = ijk
 
         xmin = self.axis_x.borders[k]
@@ -255,7 +276,10 @@ class RegularAxes3:
     # https://www.kitware.com/cinematic-volume-rendering/
     def volume(self, X, vmin=None, vmax=None, cmap='viridis', amin=0, amax=1, blank_nan=False):
         """
+        Return a VTK volume for the 3-D array *X* on this grid.  Requires the
+        optional ``viz`` dependency (``pip install pyinverse[viz]``).
         """
+        vtk = optional_import('vtk', extra='viz', purpose='RegularAxes3.volume')
         vmin, vmax = self._vtk_plot_setup(X, vmin=vmin, vmax=vmax, cmap=cmap, blank_nan=blank_nan)
 
         self._opacity_tf = vtk.vtkPiecewiseFunction()
@@ -304,7 +328,8 @@ if __name__ == '__main__':
     # [21 22 23 24;
     #  25 26 27 28]
 
-    X = np.array([[[1, 11, 21], [2, 12, 22], [3, 13, 23], [4, 14, 24]], [[5, 15, 25], [6, 16, 26], [7, 17, 27], [8, 18, 28]]], dtype=float)
+    X = np.array([[[1, 11, 21], [2, 12, 22], [3, 13, 23], [4, 14, 24]],
+                  [[5, 15, 25], [6, 16, 26], [7, 17, 27], [8, 18, 28]]], dtype=float)
     Nz, Ny, Nx = X.shape
 
     axes3 = RegularAxes3.linspace((-1, 1.5, Nx),
@@ -318,6 +343,8 @@ if __name__ == '__main__':
     X_actor.GetProperty().LightingOff()
 
     # X_volume = axes3.volume(X, vmin=0, vmax=Nx*Ny*Nz, amin=0.2)
+
+    from pyviz3d.viz import Renderer
 
     ren = Renderer()
     ren.depth_peeling_setup()

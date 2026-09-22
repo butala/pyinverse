@@ -1,12 +1,10 @@
 from dataclasses import dataclass
-import math
 
 import numpy as np
-import scipy.signal
 
 from .angle import Angle
-from .util import robust_arcsin, robust_sqrt, besinc
-from .radon import radon_translate, radon_affine_scale
+from .radon import radon_affine_scale, radon_translate
+from .util import besinc
 
 
 def ellipse_bb(x, y, major, minor, angle):
@@ -80,8 +78,8 @@ def proj_disk(r, r0=1, alpha=1):
 
     """
     y = np.zeros_like(r)
-    I = np.abs(r) <= r0
-    y[I] = 2*alpha*np.sqrt(r0**2 - r[I]**2)
+    inside = np.abs(r) <= r0
+    y[inside] = 2*alpha*np.sqrt(r0**2 - r[inside]**2)
     return y
 
 
@@ -95,7 +93,7 @@ def ellipse_proj(ellipse, sinogram_grid, Y=None):
     """
     # Implementation using Radon transform properties.
     if Y is None:
-        Y = np.zeros((sinogram_grid.shape))
+        Y = np.zeros(sinogram_grid.shape)
     for k, theta_k in enumerate(np.radians(sinogram_grid.axis_x)):
         theta_prime = theta_k - ellipse.phi.rad
         t_prime = radon_translate(theta_k, sinogram_grid.axis_y.centers, ellipse.x0, ellipse.y0)
@@ -121,10 +119,11 @@ def ellipse_proj_direct(ellipse, sinogram_grid, Y=None):
     TAU = T - s * np.cos(gamma - THETA)
     BETA = THETA - ellipse.phi.rad
     ALPHA = np.sqrt(ellipse.a**2 * np.cos(BETA)**2 + ellipse.b**2 * np.sin(BETA)**2)
-    I = abs(TAU) <= ALPHA
+    inside = abs(TAU) <= ALPHA
     if Y is None:
         Y = np.zeros((axis_t.N, len(thetas_deg)))
-    Y[I] += 2 * ellipse.rho * ellipse.a * ellipse.b / ALPHA[I]**2 * np.sqrt(ALPHA[I]**2 - TAU[I]**2)
+    Y[inside] += (2 * ellipse.rho * ellipse.a * ellipse.b / ALPHA[inside]**2
+                  * np.sqrt(ALPHA[inside]**2 - TAU[inside]**2))
     return Y
 
 
@@ -146,23 +145,23 @@ def ellipse_proj_rect(ellipse, sinogram_grid, a, Y=None):
 
     """
     if Y is None:
-        Y = np.zeros((sinogram_grid.shape))
+        Y = np.zeros(sinogram_grid.shape)
     for k, theta_k in enumerate(np.radians(sinogram_grid.axis_x)):
         theta_prime = theta_k - ellipse.phi.rad
         t_prime = radon_translate(theta_k, sinogram_grid.axis_y.centers, ellipse.x0, ellipse.y0)
         theta_prime2, t_prime2, scale_factor = radon_affine_scale(theta_prime, t_prime, 1/ellipse.a, 1/ellipse.b)
         a_prime = a / scale_factor * ellipse.a * ellipse.b
 
-        I = np.abs(t_prime2) < 1 + 1/(2*a_prime)
-        t_prime2_left = t_prime2[I] - 1/(2*a_prime)
+        inside = np.abs(t_prime2) < 1 + 1/(2*a_prime)
+        t_prime2_left = t_prime2[inside] - 1/(2*a_prime)
         t_prime2_left[t_prime2_left < -1] = -1
-        t_prime2_right = t_prime2[I] + 1/(2*a_prime)
+        t_prime2_right = t_prime2[inside] + 1/(2*a_prime)
         t_prime2_right[t_prime2_right > 1] = 1
 
-        I1 = integral_sqrt_a2_minus_x2(t_prime2_right, 1)
-        I2 = integral_sqrt_a2_minus_x2(t_prime2_left, 1)
+        int_right = integral_sqrt_a2_minus_x2(t_prime2_right, 1)
+        int_left = integral_sqrt_a2_minus_x2(t_prime2_left, 1)
 
-        Y[I, k] += 2*ellipse.rho*scale_factor*a_prime*(I1 - I2)
+        Y[inside, k] += 2*ellipse.rho*scale_factor*a_prime*(int_right - int_left)
     return Y
 
 
@@ -185,7 +184,6 @@ def ellipse_proj_ft(ellipse, sinogram_ft_grid, Y_ft=None):
 def ellipse_proj_rect_ft(ellipse, sinogram_ft_grid, a, Y_ft=None):
     """ ??? """
     Y_ft = ellipse_proj_ft(ellipse, sinogram_ft_grid, Y_ft=Y_ft)
-    Ts_t = sinogram_ft_grid.axis_y.axis_t.T
     W = np.sinc(sinogram_ft_grid.axis_y.centers / a)
     Y_ft *= np.atleast_2d(W).T
     return Y_ft
@@ -227,9 +225,10 @@ def ellipse_raster(ellipse, regular_grid, doall=False, A=None, N=20):
     # Determine if corners of each pixel are contained inside the ellipse.
     X, Y = np.meshgrid(regular_grid.axis_x.borders[J1:J2+2] - ellipse.x0,
                        regular_grid.axis_y.borders[I1:I2+2] - ellipse.y0)
-    D = (X*ellipse.phi.cos + Y*ellipse.phi.sin)**2 / ellipse.a_sq + (Y*ellipse.phi.cos - X*ellipse.phi.sin)**2 / ellipse.b_sq
+    D = ((X*ellipse.phi.cos + Y*ellipse.phi.sin)**2 / ellipse.a_sq
+         + (Y*ellipse.phi.cos - X*ellipse.phi.sin)**2 / ellipse.b_sq)
 
-    n_rows = A.shape[0]
+    A.shape[0]
     for i, A_i in enumerate(range(I1, I2 + 1)):
         for j, A_j in enumerate(range(J1, J2 + 1)):
             D_bounds_ij = [D[i, j], D[i, j + 1],
@@ -239,7 +238,8 @@ def ellipse_raster(ellipse, regular_grid, doall=False, A=None, N=20):
                 A[A_i, A_j] += ellipse.rho
             elif (np.array(D_bounds_ij) <= 1).any():
                 # the pixel partially intersects with the ellipse
-                indicator_fun = lambda x: ellipse(x[0], x[1])
+                def indicator_fun(x):
+                    return ellipse(x[0], x[1])
                 bounds = [regular_grid.axis_x.borders[A_j],
                           regular_grid.axis_x.borders[A_j+1],
                           regular_grid.axis_y.borders[A_i],
@@ -261,7 +261,8 @@ class Ellipse:
     """
     The notes on [length] and [mass] below concern the Shepp-Logan phantom.
     - A has units of density [mass] / [length]^2
-    - a, b, x0, and y0 are given in the unit of [length], but in the relative sense (not in the absolute sense of, e.g., m)
+    - a, b, x0, and y0 are given in the unit of [length], but in the relative
+      sense (not in the absolute sense of, e.g., m)
     - phi is an Angle (can be degrees or radians)
     """
 
@@ -289,7 +290,9 @@ class Ellipse:
         """
         x_prime = x - self.x0
         y_prime = y - self.y0
-        return ((x_prime*self.phi.cos + y_prime*self.phi.sin)**2 / self.a_sq + (y_prime*self.phi.cos - x_prime*self.phi.sin)**2 / self.b_sq <= 1) * self.rho
+        inside = ((x_prime*self.phi.cos + y_prime*self.phi.sin)**2 / self.a_sq
+                  + (y_prime*self.phi.cos - x_prime*self.phi.sin)**2 / self.b_sq <= 1)
+        return inside * self.rho
 
     def raster(self, regular_grid, doall=False, A=None, N=20):
         """Return an image rasterization of the ellipse. (see

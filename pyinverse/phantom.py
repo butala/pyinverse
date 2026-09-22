@@ -3,11 +3,11 @@ import numpy as np
 from .angle import Angle
 from .ellipse import Ellipse
 
-
 """
 Ellipse parameters for a 2-D phantom. The format is the same as used by the phantom function in Matlab. See https://www.mathworks.com/help/images/ref/phantom.html
 
-Ellipses that define the phantom, specified as an e-by-6 numeric matrix defining e ellipses. The six columns of E are the ellipse parameters.
+Ellipses that define the phantom, specified as an e-by-6 numeric matrix
+defining e ellipses. The six columns of E are the ellipse parameters.
 
 Column 1: A
 Additive intensity value of the ellipse

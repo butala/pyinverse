@@ -1,3 +1,19 @@
+"""Polytope volume computation.
+
+Two independent implementations of the volume of the polytope
+:math:`\\{x \\mid A x \\le b\\}`:
+
+``volume_cal``
+    Pure Python/NumPy.  Always available; the reference implementation.
+``lasserre_vol``
+    A thin wrapper around the optional C extension in ``pyinverse/lasserre``.
+    The shared library is loaded *lazily*, on the first call, so that importing
+    :mod:`pyinverse` and using the analytic Radon path never requires the
+    extension to be built -- see :func:`lasserre_available`.  Set
+    ``PYINVERSE_LASSERRE_DIR`` to point at a built library, or
+    ``pip install -e .`` (with a C compiler) to build it.
+"""
+
 #Given (A,b) as H-form data, and V as a list of vertices
 #P={x|Ax<b}, P=conv(V)
 
@@ -20,33 +36,117 @@
 #or it cannot handle fractions for now, still working on the script and other methods.
 
 
-import sys
+import ctypes
+import importlib.util
+import os
 import platform
+import sys
+from ctypes import c_double, c_size_t
 from fractions import Fraction
 from pathlib import Path
-from ctypes import c_double, c_size_t
 
 import numpy as np
 
-import pyinverse
+#: Base name of the optional C extension, e.g. ``lasserre.cpython-312-darwin.so``.
+#: This will not work on Windows but may work on Linux.
+LASSERRE_LIB_NAME = (
+    f"lasserre.{sys.implementation.name}-{sys.version_info.major}"
+    f"{sys.version_info.minor}-{platform.system().lower()}.so"
+)
+
+_lasserre_vol_c = None
 
 
-# This will not work on windows but may work on linux
-LASSERRE_LIB_NAME = f'lasserre.{sys.implementation.name}-{sys.version_info.major}{sys.version_info.minor}-{platform.system().lower()}.so'
-LASSERRE_LIB_FULLPATH = Path(pyinverse.__file__).parent.parent
+def lasserre_candidates():
+    """Yield, in order, the paths searched for the ``lasserre`` shared library.
 
-liblasserre = np.ctypeslib.load_library(LASSERRE_LIB_NAME, LASSERRE_LIB_FULLPATH)
+    The search order is:
 
-lasserre_vol = liblasserre.lasserre_vol
-lasserre_vol.restype = c_double
-lasserre_vol.argtypes = [c_size_t,
-                         c_size_t,
-                         np.ctypeslib.ndpointer(dtype=c_double,
-                                                ndim=2,
-                                                flags='C'),
-                         np.ctypeslib.ndpointer(dtype=c_double,
-                                                ndim=1,
-                                                flags='C')]
+    1. ``$PYINVERSE_LASSERRE_DIR``, if set;
+    2. the location of an installed top-level extension module named
+       ``lasserre`` (what ``pip install`` produces for
+       ``Extension(name='lasserre', ...)``);
+    3. the repository root and then the package directory (what an in-place
+       ``pip install -e .`` or ``python setup.py build_ext --inplace`` produces).
+    """
+    name = LASSERRE_LIB_NAME
+    env_dir = os.environ.get("PYINVERSE_LASSERRE_DIR")
+    if env_dir:
+        yield Path(env_dir) / name
+    try:
+        spec = importlib.util.find_spec("lasserre")
+    except (ImportError, ValueError):
+        spec = None
+    if spec is not None and spec.origin:
+        yield Path(spec.origin)
+    here = Path(__file__).resolve().parent
+    yield here.parent / name
+    yield here / name
+
+
+def _load_lasserre():
+    """Load (once) and return the ``lasserre_vol`` entry point of the extension."""
+    global _lasserre_vol_c
+    if _lasserre_vol_c is None:
+        for candidate in lasserre_candidates():
+            if not candidate.is_file():
+                continue
+            lib = ctypes.CDLL(str(candidate))
+            fn = lib.lasserre_vol
+            fn.restype = c_double
+            fn.argtypes = [c_size_t,
+                           c_size_t,
+                           np.ctypeslib.ndpointer(dtype=c_double,
+                                                  ndim=2,
+                                                  flags="C"),
+                           np.ctypeslib.ndpointer(dtype=c_double,
+                                                  ndim=1,
+                                                  flags="C")]
+            _lasserre_vol_c = fn
+            break
+        else:
+            searched = ", ".join(str(p) for p in lasserre_candidates())
+            raise ImportError(
+                f"the optional 'lasserre' C extension ({LASSERRE_LIB_NAME}) was "
+                f"not found; searched {searched}. It is only needed for the fast "
+                "polytope-volume path (``lasserre_vol``); the analytic Radon "
+                "transform and ``volume_cal`` do not use it. Build it with "
+                "`pip install -e .` (requires a C compiler), or set "
+                "PYINVERSE_LASSERRE_DIR to its directory."
+            )
+    return _lasserre_vol_c
+
+
+def lasserre_available():
+    """Return True if the optional ``lasserre`` C extension can be loaded."""
+    try:
+        _load_lasserre()
+    except ImportError:
+        return False
+    return True
+
+
+def lasserre_vol(m, d, A, b):
+    """Volume of :math:`\\{x \\mid A x \\le b\\}` via the optional C extension.
+
+    Args:
+        m (int): number of half-space constraints (rows of *A*).
+        d (int): dimension of the space.
+        A (array_like): ``(m, d)`` constraint matrix.
+        b (array_like): ``(m,)`` constraint vector.
+
+    Returns:
+        float: the volume.
+
+    Raises:
+        ImportError: if the extension has not been built.  Use
+            :func:`lasserre_available` to test for this, or
+            :func:`volume_cal` for the always-available pure Python path.
+    """
+    fn = _load_lasserre()
+    A = np.ascontiguousarray(A, dtype=c_double)
+    b = np.ascontiguousarray(b, dtype=c_double)
+    return fn(m, d, A, b)
 
 class EmptyHalfspaceException(Exception):
     pass
@@ -179,10 +279,10 @@ def lass_vol(A, b):
                     continue
 
                 l_prime = 0
-                for l in range(N):
-                    if l == j:
+                for ell in range(N):
+                    if ell == j:
                         continue
-                    A_tilde[k_prime, l_prime] = A[k, l] - A[k, j] * A[i, l] / A[i, j]
+                    A_tilde[k_prime, l_prime] = A[k, ell] - A[k, j] * A[i, ell] / A[i, j]
                     l_prime += 1
 
                 b_tilde[k_prime] = b[k] - A[k, j] / A[i, j] * b[i]
@@ -203,8 +303,29 @@ def lass_vol(A, b):
         return np.inf
 
 
-def volume_cal(m,d,A,b):
+def volume_cal(m, d, A, b):
+    """Volume of the polytope ``{x | A x <= b}`` (pure Python/NumPy).
+
+    This is a recursive half-space decomposition.  It is the always-available
+    reference implementation; :func:`lasserre_vol` is the optional fast path.
+
+    Args:
+        m (int): number of half-space constraints (rows of *A*).
+        d (int): dimension of the space.
+        A (array_like): ``(m, d)`` constraint matrix with ``A x <= b``.
+        b (array_like): ``(m,)`` constraint vector.
+
+    Returns:
+        float: the volume.
+    """
+    A = np.asarray(A, dtype=float)
+    b = np.asarray(b, dtype=float)
+    if A.shape != (m, d):
+        raise ValueError(f'A must have shape ({m}, {d}), got {A.shape}')
+    if b.shape != (m,):
+        raise ValueError(f'b must have shape ({m},), got {b.shape}')
     sum_m = 0
+
 
     # This part detact if this is the base case
     if d==1:
@@ -242,11 +363,13 @@ def volume_cal(m,d,A,b):
         for i in range(m):
             A_me = A_t-A_t[i]
             exist_smaller = 0
-            b_now = b_t[i]
+            b_t[i]
 
             for c in range(m):
                 A_temp = A_t[c]+A_t[i]
-                if min(A_temp)==0 and max(A_temp)==0 and b_t[c]*-1>b_t[i] and (min(A_t[c])!=0 or max(A_t[c])!=0) and (min(A_t[i])!=0 or max(A_t[i])!=0):
+                if (min(A_temp) == 0 and max(A_temp) == 0 and b_t[c]*-1 > b_t[i]
+                        and (min(A_t[c]) != 0 or max(A_t[c]) != 0)
+                        and (min(A_t[i]) != 0 or max(A_t[i]) != 0)):
                     return 0
 
                 if min(A_me[c])==0 and max(A_me[c])==0 and (b_t[c]<b_t[i] or (b_t[c]==b_t[i] and c<i)):
@@ -303,7 +426,7 @@ def volume_cal(m,d,A,b):
 # Code latest updated on Aug.26th,2020.
 
 def read_hyperplanes(filename):
-    with open(filename,'rt') as file:  #After code under "with open as" is completed, csvfile is closed
+    with open(filename) as file:  #After code under "with open as" is completed, csvfile is closed
         keywords = file.readlines()
         file.close()
 
@@ -312,8 +435,8 @@ def read_hyperplanes(filename):
         for line in keywords:
             if (counter==3):
                 try:
-                    a,b,_ = map(str,line.split())
-                except:
+                    a, b, _ = map(str, line.split())
+                except Exception:
                     continue
                 G_m = int(a)
                 G_d = int(b)-1
@@ -335,179 +458,32 @@ def read_hyperplanes(filename):
 
 
 if __name__ == '__main__':
-    # A = np.array([[ -1,  1],
-    #               [  2,  1],
-    #               [1/2, -1],
-    #               [ -1,  0],
-    #               [  0, -1]], dtype=float)
-
-    # b1 = 1
-    # b2 = 2
-    # b3 = 3
-
-    # # 0.8333333333333333
-    # b = np.array([b1, b2, b3, 0, 0], dtype=float)
-
-    # print(lass_vol(A, b))
-
-    # print(lasserre_vol(5, 2, A, b))
-
-    # print('-' * 30)
-
-    # A = np.array([[-1.        ,  0.        ,  0.        ],
-    #               [ 1.        ,  0.        ,  0.        ],
-    #               [ 0.        , -1.        ,  0.        ],
-    #               [ 0.        ,  1.        ,  0.        ],
-    #               [ 0.        ,  0.        , -1.        ],
-    #               [ 0.        ,  0.        ,  1.        ],
-    #               [-0.92387953,  0.38268343,  0.        ],
-    #               [ 0.92387953, -0.38268343,  0.        ],
-    #               [-0.33141357, -0.80010315, -0.5       ],
-    #               [ 0.33141357,  0.80010315,  0.5       ]])
-
-    # b = np.array([ 4.00000000e-01,  2.22044605e-16,  2.85714286e-01,  0.00000000e+00,
-    #               -7.50000000e-01,  1.25000000e+00,  8.00000000e-01, -4.00000000e-01,
-    #               -2.50000000e-01,  7.50000000e-01])
-
-    # # 0
-    # print(lass_vol(A, b))
-    # print(volume_cal(10, 3, A, b))
-    # print(lasserre_vol(10, 3, A, b))
-    # print('-' * 30)
-
-    # A = np.array([[1, 1]], dtype=float)
-    # b = np.array([1], dtype=float)
-
-    # # inf
-    # print(lass_vol(A, b))
-    # print(lasserre_vol(1, 2, A, b))
-    # # print(volume_cal(1, 2, A, b)) --- FAILURE CASE!
-
-    # print('-' * 30)
-
-    # # inf
-    # A = np.array([[-0.13695936, -1.5532242],
-    #               [ 1.11813139, -0.64901562]])
-
-    # b = np.array([-0.50402157,  0.71513002])
-
-    # print(lass_vol(A, b))
-    # print(lasserre_vol(2, 2, A, b))
-    # # print(volume_cal(2, 2, A, b)) --- FAILURE CASE!
-
-    # A = np.array([[ 0.        ,  0.        ],
-    #               [-1.        ,  0.        ],
-    #               [ 1.        ,  0.        ],
-    #               [ 0.        , -1.        ],
-    #               [ 0.        ,  1.        ],
-    #               [ 0.17364818,  0.        ],
-    #               [-0.17364818,  0.        ],
-    #               [-0.17101007, -0.98480775],
-    #               [ 0.17101007,  0.98480775]])
-
-    # b = np.array([ 2.22222222,  1.11111111,  1.11111111,  1.11111111,  1.11111111,
-    #                2.42756416, -1.7608975 ,  1.36683743, -0.70017077])
-
-    # A = np.array([[  0.        ,   0.        ],
-    #               [ -1.        ,   0.        ],
-    #               [  1.        ,   0.        ],
-    #               [  0.        ,  -1.        ],
-    #               [  0.        ,   1.        ],
-    #               [  0.17632698,   0.        ],
-    #               [ -0.17632698,   0.        ],
-    #               [ -5.67128169, -32.65960982],
-    #               [  5.67128169,  32.65960982]])
-
-    # b = np.array([  2.22222222,   1.11111111,   1.11111111,   1.11111111,
-    #                 1.11111111,   0.24279104,   0.43416003,  43.10680484,
-    #                 -20.99784703])
-
-    # A = np.array([[ -1.        ,   0.        ],
-    #               [  1.        ,   0.        ],
-    #               [  0.        ,  -1.        ],
-    #               [  0.        ,   1.        ],
-    #               [ -5.67128169, -32.65960982],
-    #               [  5.67128169,  32.65960982]])
-
-    # b = np.array([  0.43416003,   0.24279104,   1.11111111,   1.11111111,
-    #                 43.10680484, -20.99784703])
-
-    # THIS CASE IS (I BELIEVE) EQUIVALENT TO THE ABOVE!
-    # A = np.array([[ 0.        ,  0.        ],
-    #               [-1.        ,  0.        ],
-    #               [ 1.        ,  0.        ],
-    #               [ 0.        , -1.        ],
-    #               [ 0.        ,  1.        ],
-    #               [-1.        , -5.75877052],
-    #               [ 1.        ,  5.75877052],
-    #               [ 0.        ,  0.        ],
-    #               [ 0.        ,  0.        ]])
-
-    # b = np.array([ 2.22222222,  1.11111111,  1.11111111,  1.11111111,  1.11111111,
-    #                7.60089292, -3.70248705,  0.        ,  0.        ])
-
-    # A = np.array([[-1.        ,  0.        ],
-    #               [ 1.        ,  0.        ],
-    #               [ 0.        , -1.        ],
-    #               [ 0.        ,  1.        ],
-    #               [-1.        , -5.75877052],
-    #               [ 1.        ,  5.75877052]])
-
-    # b = np.array([ 1.11111111,  1.11111111,  1.11111111,  1.11111111,
-    #                7.60089292, -3.70248705])
-
-    A = np.array([[-1.        ,  0.        ,  0.        ],
-                  [ 1.        ,  0.        ,  0.        ],
-                  [ 0.        , -1.        ,  0.        ],
-                  [ 0.        ,  1.        ,  0.        ],
-                  [ 0.        ,  0.        , -1.        ],
-                  [ 0.        ,  0.        ,  1.        ],
-                  [-0.98480775,  0.17364818,  0.        ],
-                  [ 0.98480775, -0.17364818,  0.        ],
-                  [-0.03015369, -0.17101007, -0.98480775],
-                  [ 0.03015369,  0.17101007,  0.98480775]])
-
-    b = np.array([ 1.11111111,  1.11111111,  1.11111111,  1.11111111,  1.11111111,
-                   1.11111111,  1.33333333, -0.66666667,  1.33333333, -0.66666667])
-
-
-    # A = np.array([[ -1.        ,   0.        ],
-    #               [  1.        ,   0.        ],
-    #               [  0.        ,  -1.        ],
-    #               [  0.        ,   1.        ],
-    #               [  0.17632698,   0.        ],
-    #               [ -0.17632698,   0.        ],
-    #               [ -5.67128169, -32.65960982],
-    #               [  5.67128169,  32.65960982]])
-
-    # b = np.array([  1.11111111,   1.11111111,   1.11111111,   1.11111111,
-    #                 2.46501326,  -1.78806219,  45.32902706, -23.22006925])
-
-    M, N = A.shape
-
-    vol1 = volume_cal(M, N, A, b)
-    vol2 = lass_vol(A, b)
-
-    print('!!!', vol1)
-    print('!!!', vol2)
-
-    print(np.allclose(vol1, vol2))
-
-    print('-' * 30)
-
-    A = np.array([[-1.        ,  0.        ,  0.        ],
-                  [ 1.        ,  0.        ,  0.        ],
-                  [ 0.        , -1.        ,  0.        ],
-                  [ 0.        ,  1.        ,  0.        ],
-                  [ 0.        ,  0.        , -1.        ],
-                  [ 0.        ,  0.        ,  1.        ],
-                  [-0.98480775,  0.17364818,  0.        ],
-                  [ 0.98480775, -0.17364818,  0.        ],
-                  [-0.03015369, -0.17101007, -0.98480775],
-                  [ 0.03015369,  0.17101007,  0.98480775]])
-
-    b = np.array([ 1.11111111,  1.11111111,  1.11111111,  1.11111111,  1.11111111,
-                   1.11111111,  1.33333333, -0.66666667,  1.33333333, -0.66666667])
-
-    print(volume_cal(10, 3, A, b))
-    print(lass_vol(A, b))
+    # Self-check against known polytope volumes.  Run: python3 -m pyinverse.volume
+    cases = [
+        ('unit square',
+         np.array([[-1, 0], [1, 0], [0, -1], [0, 1]], dtype=float),
+         np.array([0, 1, 0, 1], dtype=float),
+         1.0),
+        ('unit triangle',
+         np.array([[-1, 0], [0, -1], [1, 1]], dtype=float),
+         np.array([0, 0, 1], dtype=float),
+         0.5),
+        ('unit cube',
+         np.array([[-1, 0, 0], [1, 0, 0], [0, -1, 0],
+                   [0, 1, 0], [0, 0, -1], [0, 0, 1]], dtype=float),
+         np.array([0, 1, 0, 1, 0, 1], dtype=float),
+         1.0),
+        ('unit simplex in 3-D',
+         np.array([[-1, 0, 0], [0, -1, 0], [0, 0, -1], [1, 1, 1]], dtype=float),
+         np.array([0, 0, 0, 1], dtype=float),
+         1/6),
+    ]
+    ok = True
+    for name, A, b, expected in cases:
+        got = volume_cal(*A.shape, A, b)
+        agree = np.isclose(got, expected)
+        ok = ok and agree
+        print(f'{name:22s} volume_cal = {got:.12g}  expected {expected:.12g}  '
+              f'{"ok" if agree else "MISMATCH"}')
+    print(f'{"lasserre C extension":22s} available: {lasserre_available()}')
+    sys.exit(0 if ok else 1)

@@ -56,6 +56,7 @@ Run:  python3 tests/fbp_validation.py
 import os
 import sys
 import types
+
 import numpy as np
 
 # Make the repo importable when run as a plain script.
@@ -72,15 +73,15 @@ for _name in ("imageio", "vtk"):
         except Exception:
             sys.modules[_name] = types.ModuleType(_name)
 
-from pyinverse.angle import Angle, AngleRegularAxis          # noqa: E402
-from pyinverse.axis import RegularAxis                        # noqa: E402
-from pyinverse.grid import RegularGrid                        # noqa: E402
-from pyinverse.ellipse import Ellipse                         # noqa: E402
-from pyinverse.ellipsoid import Ellipsoid                     # noqa: E402
-from pyinverse.phantom import Phantom                         # noqa: E402
-from pyinverse.fbp import fbp                                 # noqa: E402
-from pyinverse import fbp3 as fbp3_mod                        # noqa: E402
-from pyinverse.fbp3 import fbp3_theta0                        # noqa: E402
+from pyinverse import fbp3 as fbp3_mod  # noqa: E402
+from pyinverse.angle import Angle, AngleRegularAxis  # noqa: E402
+from pyinverse.axis import RegularAxis  # noqa: E402
+from pyinverse.ellipse import Ellipse  # noqa: E402
+from pyinverse.ellipsoid import Ellipsoid  # noqa: E402
+from pyinverse.fbp import fbp  # noqa: E402
+from pyinverse.fbp3 import fbp3_theta0  # noqa: E402
+from pyinverse.grid import RegularGrid  # noqa: E402
+from pyinverse.phantom import Phantom  # noqa: E402
 
 # Keep a handle on the *shipped* filter so repeated sweeps don't capture a
 # previously monkeypatched version.
@@ -585,7 +586,7 @@ def check_theta0_vs_2d_fbp(n=24, Nu=48, ulim=2.0, Nphi=64,
         print(f"{th:>6} {d:>19.3e} {dz:>13.2e} {rel_l2(r_pre, ref):>15.3f} "
               f"{np.abs(r_pre).max():>17.5f}")
         assert d < 2e-3, f"tilted recon does not match 2-D FBP (theta={th})"
-        assert dz < 2e-3, f"tilted recon of a z-invariant object varies with z"
+        assert dz < 2e-3, "tilted recon of a z-invariant object varies with z"
         if th > 0:
             assert rel_l2(r_pre, ref) > 0.03, \
                 "counterfactual does not show the sec(theta) overshoot"
@@ -693,7 +694,8 @@ def _plot_all(plot):
     if "2d" in plot:
         truth, recons, out, grid = plot["2d"]
         fig, ax = plt.subplots(1, 4, figsize=(16, 4))
-        grid.plot(ax[0], truth); ax[0].set_title("2-D phantom")
+        grid.plot(ax[0], truth)
+        ax[0].set_title("2-D phantom")
         for a, Na in zip(ax[1:], sorted(recons)):
             grid.plot(a, recons[Na], vmin=0, vmax=1)
             a.set_title(f"2-D FBP, Na={Na}")

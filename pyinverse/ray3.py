@@ -1,20 +1,19 @@
-import sys
 import logging
 import math
 import multiprocessing
-from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
-from itertools import product
+import sys
+from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
 from functools import partial
+from itertools import product
 
 import numpy as np
 import scipy as sp
-import vtk
-from tqdm import tqdm
 
+from ._optional import optional_import, tqdm
 from .angle import Angle
-from .grid import RegularGrid
 from .axes import RegularAxes3
-from .volume import volume_cal, lasserre_vol
+from .grid import RegularGrid
+from .volume import lasserre_vol, volume_cal
 
 
 def regular_axes2polytope(axes3, ijk):
@@ -93,7 +92,10 @@ def beam2actor(grid, ij, e_min_max, theta, phi, color='Peru', alpha=0.2):
     oriented by the :class:`Angle` instances *theta* and *phi* are the
     polar angle [-pi/2, pi/2] and azimuth [-pi, pi]. Use the web color
     *color* and opacity *alpha*.
+
+    Requires the optional ``viz`` dependency (``pip install pyinverse[viz]``).
     """
+    vtk = optional_import('vtk', extra='viz', purpose='ray3.beam2actor')
     i, j = ij
     emin, emax = e_min_max
 
@@ -135,7 +137,6 @@ def ray_row(A_mn, b_mn, u_T, v_T, axes3, _fast_vol=True):
     Nz, Ny, Nx = axes3.shape
 
     data = []
-    indices = []
 
     def ray_helper(data_i, indices_i, i1, i2, j1, j2, k1, k2):
         if (i2 <= i1) or (j2 <= j1) or (k2 <= k1):
@@ -197,9 +198,15 @@ def ray_row_mn(theta, phi, axes3, grid_uv, mn):
     return ray_row(A_mn, b_mn, grid_uv.axis_x.T, grid_uv.axis_y.T, axes3)
 
 
-def ray_matrix(theta, phi, axes3, grid_uv, n_cpu=multiprocessing.cpu_count()):
+def ray_matrix(theta, phi, axes3, grid_uv, n_cpu=None):
+    """Matrix form of the 3-D ray transform for one (theta, phi) orientation.
+
+    *n_cpu* defaults to ``None``, meaning ``multiprocessing.cpu_count()``.  On
+    platforms whose start method is ``spawn`` (macOS, Windows) a value greater
+    than one must be used from inside a ``if __name__ == '__main__':`` guard.
     """
-    """
+    if n_cpu is None:
+        n_cpu = multiprocessing.cpu_count()
     Nv, Nu = grid_uv.shape
 
     ij = product(range(Nv), range(Nu))
@@ -233,7 +240,7 @@ def main(argv=None):
                         help='polar angle ([-90, 90] degrees, rotation relative to the x-y plane)')
     parser.add_argument('phi',
                         type=float,
-                        help='azimuth angle ([-180, 180] degrees, rotation about \hat{z})')
+                        help=r'azimuth angle ([-180, 180] degrees, rotation about $\hat{z}$)')
     xyz_group = parser.add_mutually_exclusive_group(required=True)
     xyz_group.add_argument('-n',
                            type=int,

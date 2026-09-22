@@ -12,10 +12,10 @@ def besinc(x):
 
     """
     y = np.empty_like(x)
-    I = np.where(x != 0)
-    y[I] = scipy.special.j1(np.pi * x[I]) / (2 * x[I])
-    J = np.where(x == 0)
-    y[J] = np.pi / 4
+    nonzero = np.where(x != 0)
+    y[nonzero] = scipy.special.j1(np.pi * x[nonzero]) / (2 * x[nonzero])
+    zero = np.where(x == 0)
+    y[zero] = np.pi / 4
     return y
 
 

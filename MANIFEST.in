@@ -1,1 +1,5 @@
-include pyinverse/lasserre/*.h
+include LICENSE
+include README.md
+include pyproject.toml
+recursive-include pyinverse/lasserre *.h
+recursive-include tests *.py
