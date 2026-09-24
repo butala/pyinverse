@@ -68,7 +68,8 @@ def fbp(grid, grid_y, sinogram, radon_matrix=None, **kwds):
         else:
             # use Radon transform matrix if provided
             S_k = backprojector[k] @ sinogram_ramp[:, k]
-        S_k.shape = S.shape
+        # reshape view of the per-angle backprojection onto the image grid
+        S_k = np.reshape(S_k, S.shape)
         # accumulate the result
         S += S_k
     S *= np.radians(axis_theta.T)
