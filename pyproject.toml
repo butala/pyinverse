@@ -28,10 +28,15 @@ dynamic = ["version"]
 view = ["matplotlib>=3.5"]
 # Reading images from disk (RegularGrid.from_image).
 image = ["imageio>=2.9"]
-# 3-D rendering.  VTK is the actual requirement; pyviz3d provides the colour
-# transfer function and the interactive Renderer used by the `__main__` blocks
-# and the notebooks, and is not on PyPI -- install it separately if wanted.
-viz = ["vtk>=9.0"]
+# 3-D rendering: VTK plus pyviz3d (colour transfer function and the interactive
+# Renderer used by the `__main__` blocks and the notebooks).  pyviz3d is not on
+# PyPI -- that name is taken by an unrelated project -- and upstream renamed
+# the repo pyviz3d -> pyvizvtk (module included), so pin the last revision that
+# still provides the `pyviz3d` module imported by pyinverse.
+viz = [
+    "vtk>=9.0",
+    "pyviz3d @ git+https://github.com/butala/pyvizvtk.git@f09055a12aaf487799206ecfe3d3bb9c661fc4fc",
+]
 # Progress bars.  Absent tqdm, everything degrades to plain iteration.
 progress = ["tqdm>=4.60"]
 # The test suite and the dev tooling.

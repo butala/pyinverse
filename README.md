@@ -18,7 +18,7 @@ display stack, no compiler and no image libraries works fine:
 pip install -e ".[test]"        # + pytest, to run the test suite
 pip install -e ".[view]"        # + matplotlib, for Grid.plot / Grid.imshow
 pip install -e ".[image]"       # + imageio,    for RegularGrid.from_image
-pip install -e ".[viz]"         # + VTK,        for RegularAxes3.actor / .volume
+pip install -e ".[viz]"         # + VTK + pyviz3d (git), for RegularAxes3.actor / .volume
 pip install -e ".[progress]"    # + tqdm,       for progress bars
 ```
 
@@ -36,9 +36,12 @@ analytic Radon path needs it.  To point the loader at a library built
 elsewhere, set `PYINVERSE_LASSERRE_DIR`.  `pyinverse.volume.lasserre_available()`
 reports whether it could be loaded.
 
-(The 3-D rendering helpers also use [`pyviz3d`](https://github.com/butala/pyviz3d)
-for the colour transfer function and the interactive `Renderer`; it is not on
-PyPI, so install it from source if you want the notebooks' viewers.)
+(The 3-D rendering helpers also use `pyviz3d` for the colour transfer function
+and the interactive `Renderer`.  It is **not on PyPI** -- the `pyviz3d` name
+there belongs to an unrelated project -- so the `viz` extra pulls it directly
+from [GitHub](https://github.com/butala/pyvizvtk) at a pinned revision; upstream
+is now named `pyvizvtk`, and the pin is the last revision that still provides
+the `pyviz3d` module name that pyinverse imports.)
 
 ## Quick start
 
