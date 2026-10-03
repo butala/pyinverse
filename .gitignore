@@ -143,3 +143,13 @@ doc/*.toc
 
 # Validation-harness figures
 tests/out/
+
+# marimo local session cache (regenerated on every run)
+__marimo__/
+
+# marimo convert exports of the tracked Jupyter notebooks (e.g.
+# notebooks/fbp3_trivial_geometry.py from "FBP3 trivial geometry.ipynb") --
+# generated artifacts whose .ipynb twins are the source of truth.  A genuine
+# marimo notebook with no .ipynb twin must be `git add -f`'d (or this pattern
+# narrowed).
+notebooks/*.py
