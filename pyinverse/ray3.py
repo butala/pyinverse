@@ -201,12 +201,19 @@ def ray_row_mn(theta, phi, axes3, grid_uv, mn):
 def ray_matrix(theta, phi, axes3, grid_uv, n_cpu=None):
     """Matrix form of the 3-D ray transform for one (theta, phi) orientation.
 
-    *n_cpu* defaults to ``None``, meaning ``multiprocessing.cpu_count()``.  On
-    platforms whose start method is ``spawn`` (macOS, Windows) a value greater
-    than one must be used from inside a ``if __name__ == '__main__':`` guard.
+    Notes:
+        Parallelism uses :mod:`multiprocessing`.  With ``n_cpu=1`` the loop runs
+        **in process**, which needs no ``__main__`` guard and has no start-up
+        cost -- prefer it for small problems and in tests.  On platforms whose
+        start method is ``spawn`` (macOS, Windows) ``n_cpu > 1`` must be called
+        from inside a ``if __name__ == '__main__':`` guard, otherwise each
+        worker re-imports the calling script and the call recurses.  *n_cpu*
+        defaults to ``None``, meaning ``multiprocessing.cpu_count()``.
     """
     if n_cpu is None:
         n_cpu = multiprocessing.cpu_count()
+    if n_cpu < 1:
+        raise ValueError(f'n_cpu must be a positive integer or None, got {n_cpu!r}')
     Nv, Nu = grid_uv.shape
 
     ij = product(range(Nv), range(Nu))
@@ -217,11 +224,23 @@ def ray_matrix(theta, phi, axes3, grid_uv, n_cpu=None):
     indices = []
     indptr = [0]
 
-    with multiprocessing.Pool(n_cpu) as pool:
-        for data_mn, indices_mn in tqdm(pool.imap(ray_row_helper, ij), total=Nv*Nu):
+    pool = None
+    if n_cpu == 1:
+        results = tqdm((ray_row_helper(ij_k) for ij_k in ij), total=Nv*Nu)
+    else:
+        pool = multiprocessing.Pool(n_cpu)
+        results = tqdm(pool.imap(ray_row_helper, ij), total=Nv*Nu)
+
+    try:
+        for data_mn, indices_mn in results:
             data.extend(data_mn)
             indices.extend(indices_mn)
             indptr.append(indptr[-1] + len(data_mn))
+    finally:
+        if pool is not None:
+            pool.close()
+            pool.join()
+
     H = sp.sparse.csr_matrix((data, indices, indptr), shape=[Nu * Nv, np.prod(axes3.shape)])
     return H
 
