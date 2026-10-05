@@ -1,7 +1,7 @@
 #+TITLE: The reconstruction filter for 3-D filtered backprojection with a rotating 2-D detector
 #+SUBTITLE: Why the correct filter is |f_u|, and how the ramp arises as a Jacobian
 #+AUTHOR: pyinverse
-#+DATE: 2026-09-18
+#+DATE: 2026-10-03
 #+OPTIONS: toc:2 num:t
 #+LATEX_CLASS: article
 #+LATEX_CLASS_OPTIONS: [11pt]
@@ -11,8 +11,13 @@
 # Authoring notes -- this file is the source of truth.  There is no markdown
 # original; it was retired on 2026-09-18.  Edit this file, then
 #
-#     make pdf       PDF (Emacs batch export, org-latex-export-to-pdf)
+#     make pdf       PDF (Emacs batch export to .tex, then pdflatex)
+#     make md        GitHub-renderable markdown (generated -- never edit it)
 #     make check     rebuild and verify the LaTeX log and key content
+#
+# #+DATE: is generated too: `make date` (which `pdf` and `md` run) stamps it
+# with the last commit date of this file, or today while it has uncommitted
+# edits, so it cannot go stale.
 #
 # Two org parsing traps break the LaTeX export in ways that look mysterious
 # (you get "$" or "alignment tab" errors from a document that reads fine):
