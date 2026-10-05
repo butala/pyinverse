@@ -56,7 +56,9 @@ def backproject3(theta, phi, axes3, grid_uv, X, method='linear'):
         method=method, bounds_error=True)
 
     X_backproject = interp2d(np.array([v_backproject.flatten(), u_backproject.flatten()]).T)
-    X_backproject.shape = axes3.shape
+    # reshape view of the interpolator output onto the reconstruction grid
+    # (setting `.shape` is deprecated as of NumPy 2.5)
+    X_backproject = np.reshape(X_backproject, axes3.shape)
 
     return X_backproject
 
@@ -129,7 +131,9 @@ def fbp3_theta0(axes3, grid_uv, phi_axis, sinogram3, radon_matrices=None,
 
         if radon_matrices:
             X_backproject_i = radon_matrices[i].T @ p_uv_filtered_i.flat
-            X_backproject_i.shape = axes3.shape
+            # reshape view of the matrix-vector product onto the reconstruction
+            # grid (setting `.shape` is deprecated as of NumPy 2.5)
+            X_backproject_i = np.reshape(X_backproject_i, axes3.shape)
             X_backproject += X_backproject_i * alpha
         else:
             X_backproject += backproject3(theta0, phi_i, axes3, grid_uv, p_uv_filtered_i)

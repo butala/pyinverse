@@ -151,7 +151,9 @@ class Phantom3:
         axes3_hires = RegularAxes3(ax_hires, ay_hires, az_hires)
         a_z, a_y, a_x = axes3_hires.centers
         x = self(a_x.flatten(), a_y.flatten(), a_z.flatten())
-        x.shape = axes3_hires.shape
+        # reshape view of the flattened phantom sample onto the hi-res grid
+        # (setting `.shape` is deprecated as of NumPy 2.5)
+        x = np.reshape(x, axes3_hires.shape)
         ones = np.ones([D, D, D])
         return sp.ndimage.convolve(x, ones/D**3, mode='constant')[::D, ::D, ::D]
 
