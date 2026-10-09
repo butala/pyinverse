@@ -10,7 +10,7 @@ extra         provides                                    used for
 ============  ==========================================  =====================
 ``view``      ``matplotlib``                              ``Grid.plot``/``imshow``
 ``image``     ``imageio``                                 ``RegularGrid.from_image``
-``viz``       ``vtk``, ``pyviz3d``                        ``RegularAxes3.actor``/``volume``
+``viz``       ``vtk``, ``pyviz4d``       ``RegularAxes3.actor``/``volume``/``isosurface_actor``
 ``progress``  ``tqdm``                                    progress bars (optional)
 ``test``      ``pytest``                                  the test suite
 ============  ==========================================  =====================

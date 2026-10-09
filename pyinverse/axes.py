@@ -2,7 +2,7 @@
 
 Importing this module requires only NumPy and SciPy.  The rendering code
 (:meth:`RegularAxes3.actor`, :meth:`RegularAxes3.volume`,
-:meth:`RegularAxes3.voxel_actor`) resolves ``vtk`` and ``pyviz3d`` lazily, at
+:meth:`RegularAxes3.voxel_actor`) resolves ``vtk`` and ``pyviz4d`` lazily, at
 the point of use, so the numerical core works in a headless environment.
 """
 
@@ -175,8 +175,8 @@ class RegularAxes3:
         """
         vtk = optional_import('vtk', extra='viz', purpose='RegularAxes3 rendering')
         cmap2color_transfer_function = optional_import(
-            'pyviz3d.util', extra='viz',
-            purpose='RegularAxes3 rendering').cmap2color_transfer_function
+            'pyviz4d.volume', extra='viz',
+            purpose='RegularAxes3 rendering').matplotlib_ctf
         try:
             self._vtk_grid  # noqa: B018 -- probe for the cached grid
             if blank_nan or self._vtk_grid.HasAnyBlankCells():
@@ -209,7 +209,9 @@ class RegularAxes3:
             vmin = np.nanmin(X)
         if vmax is None:
             vmax = np.nanmax(X)
-        self._lut = cmap2color_transfer_function(vmin=vmin, vmax=vmax, cmap=cmap)
+        # matplotlib_ctf(cmap_name, scalar_min, scalar_max) -> a
+        # vtkColorTransferFunction over [vmin, vmax].
+        self._lut = cmap2color_transfer_function(cmap, vmin, vmax)
         return vmin, vmax
 
 
@@ -301,6 +303,65 @@ class RegularAxes3:
         return volume
 
 
+    def to_vtk_image(self, X):
+        """Return a point-sampled ``vtkImageData`` of *X* on this grid.
+
+        This is the seam to `pyviz4d <https://github.com/butala/pyviz4d>`_:
+        ``VolumeActor``, ``IsosurfaceActor`` and ``contour_actor`` all consume
+        a ``vtkImageData``, and this is the packing they expect -- scalars at
+        the sample points, in VTK's x-fastest order, which is exactly the
+        C-order flattening of the ``(Nz, Ny, Nx)`` array.  Unlike
+        :meth:`actor` / :meth:`volume`, which cache a *cell*-data grid on
+        ``self``, the image is fresh on every call, so several of them can be
+        handed to different actors without clashing.
+
+        Requires the optional ``viz`` dependency
+        (``pip install pyinverse[viz]``).
+        """
+        vtk = optional_import('vtk', extra='viz', purpose='RegularAxes3.to_vtk_image')
+        numpy_support = optional_import('vtk.util.numpy_support', extra='viz',
+                                        purpose='RegularAxes3.to_vtk_image')
+        assert X.shape == self.shape
+        Nz, Ny, Nx = self.shape
+        image = vtk.vtkImageData()
+        image.SetDimensions(Nx, Ny, Nz)
+        # one point per sample, so the origin is the first sample centre and
+        # the spacing is the sampling period of each axis
+        image.SetOrigin(self.axis_x.centers[0],
+                        self.axis_y.centers[0],
+                        self.axis_z.centers[0])
+        image.SetSpacing(self.axis_x.T, self.axis_y.T, self.axis_z.T)
+        values = numpy_support.numpy_to_vtk(
+            np.ascontiguousarray(X, dtype=np.float32).ravel(), deep=True,
+            array_type=vtk.VTK_FLOAT)
+        image.GetPointData().SetScalars(values)
+        return image
+
+
+    def isosurface_actor(self, X, levels, opacity=0.4, colors=None):
+        """Return a VTK actor holding the isosurface(s) of *X* at *levels*.
+
+        Flying-edges contouring (via ``pyviz4d.volume.contour_actor``) of
+        :meth:`to_vtk_image`, so a reconstruction can be shown as translucent
+        shells alongside the voxel :meth:`actor`, the direct :meth:`volume`, or
+        the ground truth :meth:`~pyinverse.phantom3.Phantom3.actor`.  *colors*
+        maps each level to an RGB triple; the default runs from dark purple to
+        yellow (the two ends of Matplotlib's magma).
+
+        Requires the optional ``viz`` dependency
+        (``pip install pyinverse[viz]``).
+        """
+        optional_import('vtk', extra='viz', purpose='RegularAxes3.isosurface_actor')
+        contour_actor = optional_import(
+            'pyviz4d.volume', extra='viz',
+            purpose='RegularAxes3.isosurface_actor').contour_actor
+        levels = list(levels)
+        assert len(levels) >= 1
+        _, _, actor = contour_actor(self.to_vtk_image(X), iso_values=levels,
+                                    colors=colors, opacity=opacity)
+        return actor
+
+
 class FreqRegularAxes3(RegularAxes3):
     def __init__(self, axis_x, axis_y, axis_z, axes3_s):
         super().__init__(axis_x, axis_y, axis_z)
@@ -342,16 +403,39 @@ if __name__ == '__main__':
     X_actor = axes3.actor(X, vmin=0, vmax=28, blank_nan=True)
     X_actor.GetProperty().LightingOff()
 
-    # X_volume = axes3.volume(X, vmin=0, vmax=Nx*Ny*Nz, amin=0.2)
+    # Translucent isosurface shells of the same field -- the view that reads a
+    # 3-D reconstruction as structure rather than as a voxel cage.  (NaN
+    # samples are simply outside every iso level, so the blanked cells drop
+    # out of the shells.)  `to_vtk_image` is stateless, so it is safe to call
+    # after `actor`.
+    X_iso = axes3.isosurface_actor(X, levels=[5, 15, 25], opacity=0.5)
 
-    from pyviz3d.viz import Renderer
+    # Direct volume rendering of the same field, as a composite blend.  A
+    # second grid: `_vtk_plot_setup` caches its VTK grid on the instance and
+    # refuses to reuse one whose cells have been blanked (see the note there),
+    # and the actor above blanked the NaN cells of *this* grid.
+    axes3_vol = RegularAxes3.linspace((-1, 1.5, Nx), (-2, 3.5, Ny), (-3, 4, Nz))
+    X_volume = axes3_vol.volume(X, vmin=0, vmax=28, amin=0.0, amax=0.6)
 
-    ren = Renderer()
-    ren.depth_peeling_setup()
+    from pyviz4d import Viewer4D, render_to_png
+
+    ren = Viewer4D()
     ren.add_actor(X_actor)
-    # ren.add_volume(X_volume)
-    ren.axes_on(X_actor.GetBounds())
-    ren.colorbar(axes3._lut)
-    ren.reset_camera()
+    ren.add_actor(X_iso)
+    # ren.add_actor(X_volume)   # vtkVolume: uncomment for the composite blend
 
-    ren.start()
+    # A scalar bar for the colour map (Viewer4D ships an orientation triad of
+    # its own; a legend is still worth having next to a scalar field).
+    vtk = optional_import('vtk', extra='viz', purpose='demo')
+    bar = vtk.vtkScalarBarActor()
+    bar.SetLookupTable(axes3._lut)
+    bar.SetNumberOfLabels(3)
+    ren.ren.AddViewProp(bar)
+
+    ren.ren.ResetCamera()
+    ren.save_screenshot('/tmp/axes3_demo.png')
+
+    # Offscreen and windowless: the path the tests and any headless box want.
+    render_to_png([X_actor, X_iso], '/tmp/axes3_demo_offscreen.png')
+
+    # ren.start()      # interactive; q quits

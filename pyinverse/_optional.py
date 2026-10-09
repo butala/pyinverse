@@ -2,7 +2,7 @@
 
 The numerical core of :mod:`pyinverse` needs only NumPy and SciPy.  Everything
 else -- progress bars (``tqdm``), image file I/O (``imageio``), plotting
-(``matplotlib``) and 3-D rendering (``vtk`` / ``pyviz3d``) -- is *optional* and
+(``matplotlib``) and 3-D rendering (``vtk`` / ``pyviz4d``) -- is *optional* and
 is resolved lazily, at the point of use, so that ``import pyinverse`` and every
 analytic operator keep working in a minimal, headless environment.
 

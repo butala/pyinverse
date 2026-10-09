@@ -28,14 +28,12 @@ dynamic = ["version"]
 view = ["matplotlib>=3.5"]
 # Reading images from disk (RegularGrid.from_image).
 image = ["imageio>=2.9"]
-# 3-D rendering: VTK plus pyviz3d (colour transfer function and the interactive
-# Renderer used by the `__main__` blocks and the notebooks).  pyviz3d is not on
-# PyPI -- that name is taken by an unrelated project -- and upstream renamed
-# the repo pyviz3d -> pyvizvtk (module included), so pin the last revision that
-# still provides the `pyviz3d` module imported by pyinverse.
+# 3-D rendering: VTK plus pyviz4d (colour transfer function, isosurfaces and
+# the Viewer4D used by the `__main__` blocks and the notebooks).  pyviz4d is
+# not on PyPI, so pull it from the project repository at a pinned revision.
 viz = [
     "vtk>=9.0",
-    "pyviz3d @ git+https://github.com/butala/pyvizvtk.git@f09055a12aaf487799206ecfe3d3bb9c661fc4fc",
+    "pyviz4d @ git+https://github.com/butala/pyviz4d.git@fd12742692710412e9fa8b53dae041f5da417aee",
 ]
 # Progress bars.  Absent tqdm, everything degrades to plain iteration.
 progress = ["tqdm>=4.60"]

@@ -356,7 +356,7 @@ def test_importing_pyinverse_does_not_need_the_heavy_optionals():
     import subprocess
     import sys
 
-    blockers = ['vtk', 'imageio', 'matplotlib', 'pyviz3d', 'tqdm']
+    blockers = ['vtk', 'imageio', 'matplotlib', 'pyviz4d', 'tqdm']
     code = (
         'import sys\n'
         f'sys.modules.update({{name: None for name in {blockers!r}}})\n'

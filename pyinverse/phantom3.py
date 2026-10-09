@@ -190,11 +190,9 @@ if __name__ == '__main__':
 
     actor = p.actor()
 
-    from pyviz3d.viz import Renderer
-    ren = Renderer()
+    from pyviz4d import Viewer4D
+    ren = Viewer4D()
     ren.add_actor(actor)
-    #ren.axes_on(actor.GetBounds())
-    ren.axes_on((-1, 1, -1, 1, -1, 1))
-    ren.reset_camera()
-
-    ren.start()
+    ren.ren.ResetCamera()
+    ren.save_screenshot('/tmp/phantom3.png')
+    # ren.start()

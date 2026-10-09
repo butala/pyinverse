@@ -106,7 +106,7 @@ FILTERS = {
 
 
 # --------------------------------------------------------------------------
-# Minimal stand-in for pyinverse.axes.RegularAxes3 (avoids the VTK/pyviz3d
+# Minimal stand-in for pyinverse.axes.RegularAxes3 (avoids the VTK/pyviz4d
 # import chain).  Reproduces the conventions used by fbp3/backproject3:
 # shape == (Nz, Ny, Nx), centers == meshgrid(z, y, x, indexing='ij').
 # --------------------------------------------------------------------------
