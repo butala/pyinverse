@@ -174,37 +174,31 @@ class RegularAxes3:
         """
         """
         vtk = optional_import('vtk', extra='viz', purpose='RegularAxes3 rendering')
+        numpy_support = optional_import('vtk.util.numpy_support', extra='viz',
+                                        purpose='RegularAxes3 rendering')
         cmap2color_transfer_function = optional_import(
             'pyviz4d.volume', extra='viz',
             purpose='RegularAxes3 rendering').matplotlib_ctf
-        try:
-            self._vtk_grid  # noqa: B018 -- probe for the cached grid
-            if blank_nan or self._vtk_grid.HasAnyBlankCells():
-                # Do not reuse self._vtk_grid if cells have been
-                # blanked. There will be a clash. Use a RegularAxes3
-                # with the same parameters the actor instead (or come
-                # up with a clever way not have the clash issue).
-                raise AssertionError()
-        except AttributeError:
-            if blank_nan:
-                self._vtk_grid = vtk.vtkUniformGrid()
-            else:
-                self._vtk_grid = vtk.vtkImageData()
-            Nz, Ny, Nx = self.shape
-            self._vtk_grid.SetDimensions(Nx+1, Ny+1, Nz+1)
-            self._vtk_grid.SetOrigin(self.axis_x.borders[0],
-                                     self.axis_y.borders[0],
-                                     self.axis_z.borders[0])
-            self._vtk_grid.SetSpacing(self.axis_x.T,
-                                      self.axis_y.T,
-                                      self.axis_z.T)
-        assert X.shape == self.shape
-        self._values = vtk.util.numpy_support.numpy_to_vtk(X.flat)
-        self._vtk_grid.GetCellData().SetScalars(self._values)
+        assert X.shape == self.shape, (X.shape, self.shape)
+        # A *fresh* grid on every call.  Caching one here made a second
+        # actor()/volume() call rewrite the scalars of the first, silently
+        # repainting an actor the caller was already holding; and a blanked
+        # grid could not be reused at all (the old code raised AssertionError
+        # to say so).  Fresh per call, both problems are gone.
+        grid = vtk.vtkUniformGrid() if blank_nan else vtk.vtkImageData()
+        Nz, Ny, Nx = self.shape
+        grid.SetDimensions(Nx+1, Ny+1, Nz+1)
+        grid.SetOrigin(self.axis_x.borders[0],
+                       self.axis_y.borders[0],
+                       self.axis_z.borders[0])
+        grid.SetSpacing(self.axis_x.T, self.axis_y.T, self.axis_z.T)
+        self._vtk_grid = grid          # the most recent grid, for callers that inspect it
+        self._values = numpy_support.numpy_to_vtk(X.flat)
+        grid.GetCellData().SetScalars(self._values)
         if blank_nan:
             for (k, j, i) in np.argwhere(np.isnan(X)):
                 # VTK uses i=x, j=y, k=z for BlankCell.
-                self._vtk_grid.BlankCell(i, j, k)
+                grid.BlankCell(i, j, k)
         if vmin is None:
             vmin = np.nanmin(X)
         if vmax is None:
@@ -410,12 +404,8 @@ if __name__ == '__main__':
     # after `actor`.
     X_iso = axes3.isosurface_actor(X, levels=[5, 15, 25], opacity=0.5)
 
-    # Direct volume rendering of the same field, as a composite blend.  A
-    # second grid: `_vtk_plot_setup` caches its VTK grid on the instance and
-    # refuses to reuse one whose cells have been blanked (see the note there),
-    # and the actor above blanked the NaN cells of *this* grid.
-    axes3_vol = RegularAxes3.linspace((-1, 1.5, Nx), (-2, 3.5, Ny), (-3, 4, Nz))
-    X_volume = axes3_vol.volume(X, vmin=0, vmax=28, amin=0.0, amax=0.6)
+    # Direct volume rendering of the same field, as a composite blend.
+    X_volume = axes3.volume(X, vmin=0, vmax=28, amin=0.0, amax=0.6)
 
     from pyviz4d import Viewer4D, render_to_png
 

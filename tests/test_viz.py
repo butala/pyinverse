@@ -94,10 +94,59 @@ def test_the_colour_map_is_a_vtk_colour_transfer_function(axes3):
 
 
 def test_a_fresh_image_per_call_does_not_clash(axes3):
-    """actor()/volume() cache a grid on self; to_vtk_image must not."""
+    """``to_vtk_image`` is stateless: two calls, two independent images."""
     X = np.zeros(axes3.shape)
     a = axes3.to_vtk_image(X)
     b = axes3.to_vtk_image(X + 1.0)
     assert a is not b
     assert a.GetPointData().GetScalars().GetTuple1(0) == 0.0
     assert b.GetPointData().GetScalars().GetTuple1(0) == 1.0
+
+
+def test_two_actors_from_one_grid_do_not_share_scalars(axes3):
+    """Regression: a second ``actor()`` call used to repaint the first.
+
+    ``_vtk_plot_setup`` cached its grid on the instance, so both mappers
+    pointed at the same ``vtkImageData`` and the second call's scalars
+    overwrote the first's -- a caller holding actor 1 saw it silently change
+    to show the second array.
+    """
+    X1 = np.full(axes3.shape, 1.0)
+    X2 = np.full(axes3.shape, 7.0)
+    a1 = axes3.actor(X1)
+    a2 = axes3.actor(X2)
+    s1 = a1.GetMapper().GetInput().GetCellData().GetScalars()
+    s2 = a2.GetMapper().GetInput().GetCellData().GetScalars()
+    assert s1.GetTuple1(0) == 1.0
+    assert s2.GetTuple1(0) == 7.0
+    assert a1.GetMapper().GetInput() is not a2.GetMapper().GetInput()
+
+
+def test_blank_nan_no_longer_clashes_with_a_later_call(axes3):
+    """Regression: the cached blanked grid made the next call raise a bare
+    AssertionError; with a fresh grid per call actor and volume coexist."""
+    X = np.ones(axes3.shape)
+    X[0, 0, 0] = np.nan
+    a = axes3.actor(X, blank_nan=True)
+    b = axes3.volume(X)
+    assert a.IsA('vtkActor') and b.IsA('vtkVolume')
+
+
+def test_phantom3_actor_paints_distinct_densities_distinctly():
+    """Regression: ``cm(rho * 255)`` collapsed four densities into two.
+
+    ``e.rho`` is a float, so Matplotlib read ``rho * 255`` as a 0..1 fraction
+    and clamped everything above ~1/256 to the "over" colour.
+    """
+    pytest.importorskip('pyviz4d')
+    from pyinverse.phantom3 import Phantom3
+
+    p = Phantom3()
+    assembly = p.actor()
+    colours = set()
+    for part in assembly.GetParts():
+        prop = part.GetProperty()
+        colours.add(tuple(round(c, 4) for c in prop.GetColor()))
+    rhos = {round(e.rho, 4) for e in p._ellipsoids}
+    assert len(rhos) == 4, rhos           # -0.8, -0.2, 0.1, 1.0
+    assert len(colours) == len(rhos), (colours, rhos)

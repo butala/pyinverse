@@ -157,22 +157,36 @@ class Phantom3:
         ones = np.ones([D, D, D])
         return sp.ndimage.convolve(x, ones/D**3, mode='constant')[::D, ::D, ::D]
 
-    def actor(self, opacity=0.2, cmap='viridis'):
+    def actor(self, opacity=0.2, cmap='viridis', vmin=None, vmax=None):
         """
-        Return a VTK assembly of the phantom's ellipsoids.  Requires the
-        optional ``viz`` dependency (``pip install pyinverse[viz]``), which
-        brings the Matplotlib colormap registry used to paint the ellipsoids
-        by density.
+        Return a VTK assembly of the phantom's ellipsoids, painted by density.
+        Requires the optional ``viz`` dependency (``pip install pyinverse[viz]``),
+        which brings the Matplotlib colormap registry the densities are
+        sampled from.
+
+        *vmin* / *vmax* fix the density range the colormap spans; both default
+        to the range of the ellipsoids' densities, so every distinct density
+        gets a distinct colour.
         """
         # the colormap registry only -- `matplotlib.pylab` would drag in a GUI
         # backend, which a headless box does not want (pyviz4d does the same)
         mpl = optional_import('matplotlib', extra='viz', purpose='Phantom3.actor')
         vtk = optional_import('vtk', extra='viz', purpose='Phantom3.actor')
         cm = mpl.colormaps[cmap]
+        rhos = [e.rho for e in self._ellipsoids]
+        if vmin is None:
+            vmin = min(rhos)
+        if vmax is None:
+            vmax = max(rhos)
+        span = (vmax - vmin) or 1.0
+        # A Colormap samples a float in [0, 1].  The old `cm(e.rho * 255)` read
+        # like the integer-index form but `e.rho` is a float, so matplotlib
+        # treated it as a fraction and clamped every rho above ~1/256 to the
+        # "over" colour -- four densities rendered as two.
         assembly = vtk.vtkAssembly()
         for e in self._ellipsoids:
             actor = e.actor()
-            actor.GetProperty().SetColor(*cm(e.rho * 255)[:3])
+            actor.GetProperty().SetColor(*cm((e.rho - vmin) / span)[:3])
             actor.GetProperty().SetOpacity(opacity)
             assembly.AddPart(actor)
         return assembly
