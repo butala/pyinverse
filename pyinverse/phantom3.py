@@ -195,4 +195,8 @@ if __name__ == '__main__':
     ren.add_actor(actor)
     ren.ren.ResetCamera()
     ren.save_screenshot('/tmp/phantom3.png')
-    # ren.start()
+    # Open the interactive window with `--show` (q quits, f fullscreen, r
+    # resets the camera).  Without it the PNG above is all you get.
+    import sys
+    if '--show' in sys.argv:
+        ren.start()

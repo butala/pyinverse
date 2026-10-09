@@ -438,4 +438,9 @@ if __name__ == '__main__':
     # Offscreen and windowless: the path the tests and any headless box want.
     render_to_png([X_actor, X_iso], '/tmp/axes3_demo_offscreen.png')
 
-    # ren.start()      # interactive; q quits
+    # Open the interactive window with `--show` (q quits, f fullscreen, r
+    # resets the camera to the fitted view).  Without it the PNGs above are all
+    # you get, so the demo stays usable on a headless box.
+    import sys
+    if '--show' in sys.argv:
+        ren.start()
