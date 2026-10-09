@@ -26,6 +26,24 @@ Optional pieces that are absent degrade gracefully: progress bars become plain
 iteration, and the rendering methods raise an `ImportError` that names the extra
 to install.
 
+### 3-D rendering
+
+Each rendering demo is a `__main__` block in its own module.  It writes an
+offscreen PNG, and opens an interactive [`pyviz4d`](https://github.com/butala/pyviz4d)
+window with `--show`:
+
+```sh
+uv run --extra viz python -m pyinverse.axes      --show   # voxels + isosurfaces + volume
+uv run --extra viz python -m pyinverse.phantom3  --show   # the ground-truth phantom
+uv run --extra viz python -m pyinverse.ellipsoid --show   # a single ellipsoid
+```
+
+`uv run` resolves the *core* dependencies only, so without `--extra viz` the
+rendering methods stop at an `ImportError` naming the extra to add.  Once the
+window is up: `q` quits, `f` toggles fullscreen, `r` resets the camera to the
+fitted view.  The notebooks under `notebooks/` embed the same viewer in their
+last cells -- uncomment `ren.start()` there to get a window.
+
 ### The `lasserre` C extension
 
 `pip install -e .` also tries to build a small C extension (`lasserre`, sources

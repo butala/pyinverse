@@ -29,10 +29,12 @@ view = ["matplotlib>=3.5"]
 # Reading images from disk (RegularGrid.from_image).
 image = ["imageio>=2.9"]
 # 3-D rendering: VTK plus pyviz4d (colour transfer function, isosurfaces and
-# the Viewer4D used by the `__main__` blocks and the notebooks).  pyviz4d is
-# not on PyPI, so pull it from the project repository at a pinned revision.
+# the Viewer4D used by the `__main__` blocks and the notebooks) and Matplotlib
+# for the colormap registries those helpers sample.  pyviz4d is not on PyPI, so
+# pull it from the project repository at a pinned revision.
 viz = [
     "vtk>=9.0",
+    "matplotlib>=3.6",
     "pyviz4d @ git+https://github.com/butala/pyviz4d.git@fd12742692710412e9fa8b53dae041f5da417aee",
 ]
 # Progress bars.  Absent tqdm, everything degrades to plain iteration.

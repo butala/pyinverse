@@ -160,13 +160,15 @@ class Phantom3:
     def actor(self, opacity=0.2, cmap='viridis'):
         """
         Return a VTK assembly of the phantom's ellipsoids.  Requires the
-        optional ``viz`` dependency and, for *cmap*, ``matplotlib``
-        (``pip install pyinverse[viz]``).
+        optional ``viz`` dependency (``pip install pyinverse[viz]``), which
+        brings the Matplotlib colormap registry used to paint the ellipsoids
+        by density.
         """
-        plt = optional_import('matplotlib.pylab', extra='viz',
-                              purpose='Phantom3.actor')
+        # the colormap registry only -- `matplotlib.pylab` would drag in a GUI
+        # backend, which a headless box does not want (pyviz4d does the same)
+        mpl = optional_import('matplotlib', extra='viz', purpose='Phantom3.actor')
         vtk = optional_import('vtk', extra='viz', purpose='Phantom3.actor')
-        cm = plt.get_cmap(cmap)
+        cm = mpl.colormaps[cmap]
         assembly = vtk.vtkAssembly()
         for e in self._ellipsoids:
             actor = e.actor()
