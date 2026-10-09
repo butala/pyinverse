@@ -75,6 +75,7 @@ for _name in ("imageio", "vtk"):
 
 from pyinverse import fbp3 as fbp3_mod  # noqa: E402
 from pyinverse.angle import Angle, AngleRegularAxis  # noqa: E402
+from pyinverse.axes import RegularAxes3  # noqa: E402
 from pyinverse.axis import RegularAxis  # noqa: E402
 from pyinverse.ellipse import Ellipse  # noqa: E402
 from pyinverse.ellipsoid import Ellipsoid  # noqa: E402
@@ -103,35 +104,6 @@ FILTERS = {
     # Whatever pyinverse.fbp3 currently ships (should equal abs(f_u)).
     "library ramp_filter3": _LIB_RAMP3,
 }
-
-
-# --------------------------------------------------------------------------
-# Minimal stand-in for pyinverse.axes.RegularAxes3 (avoids the VTK/pyviz4d
-# import chain).  Reproduces the conventions used by fbp3/backproject3:
-# shape == (Nz, Ny, Nx), centers == meshgrid(z, y, x, indexing='ij').
-# --------------------------------------------------------------------------
-class Axes3:
-    def __init__(self, axis_x, axis_y, axis_z):
-        self.axis_x = axis_x
-        self.axis_y = axis_y
-        self.axis_z = axis_z
-
-    @classmethod
-    def linspace(cls, lx, ly, lz):
-        return cls(RegularAxis.linspace(*lx),
-                   RegularAxis.linspace(*ly),
-                   RegularAxis.linspace(*lz))
-
-    @property
-    def shape(self):
-        return (self.axis_z.N, self.axis_y.N, self.axis_x.N)
-
-    @property
-    def centers(self):
-        return np.meshgrid(self.axis_z.centers,
-                           self.axis_y.centers,
-                           self.axis_x.centers,
-                           indexing="ij")
 
 
 # --------------------------------------------------------------------------
@@ -248,7 +220,7 @@ def run_3d(Na_list, n=32, Nu=64, ulim=2.0, filter_name="abs(f_u) (correct)",
 
     ell = {"ellipsoid": ellipsoid_phantom,
            "cylinder": cylinder_phantom}[phantom]()
-    axes3 = Axes3.linspace((-1, 1, n), (-1, 1, n), (-1, 1, n))
+    axes3 = RegularAxes3.linspace((-1, 1, n), (-1, 1, n), (-1, 1, n))
     grid_uv = RegularGrid.linspace((-ulim, ulim, Nu), (-ulim, ulim, Nu))
     truth = eval_ellipsoids(ell, axes3)
     theta = Angle(deg=theta_deg)
@@ -328,7 +300,7 @@ def check_fbp3_equals_sliced_2d(n=24, Nu=48, ulim=2.0, Nphi=64,
     print("=" * 74)
     ell = {"ellipsoid": ellipsoid_phantom,
            "cylinder": cylinder_phantom}[phantom]()
-    axes3 = Axes3.linspace((-1, 1, n), (-1, 1, n), (-1, 1, n))
+    axes3 = RegularAxes3.linspace((-1, 1, n), (-1, 1, n), (-1, 1, n))
     grid_uv = RegularGrid.linspace((-ulim, ulim, Nu), (-ulim, ulim, Nu))
     theta = Angle(deg=0)
     phi_axis = AngleRegularAxis.linspace(Angle(deg=0), Angle(deg=180),
@@ -513,7 +485,7 @@ def check_theta0_amplitude(n=24, Nu=48, ulim=2.0, Nphi=64,
     print("\n" + "=" * 74)
     print("Reconstruction amplitude vs detector tilt (z-invariant phantom)")
     print("=" * 74)
-    axes3 = Axes3.linspace((-1, 1, n), (-1, 1, n), (-1, 1, n))
+    axes3 = RegularAxes3.linspace((-1, 1, n), (-1, 1, n), (-1, 1, n))
     grid_uv = RegularGrid.linspace((-ulim, ulim, Nu), (-ulim, ulim, Nu))
     phi_axis = AngleRegularAxis.linspace(Angle(deg=0), Angle(deg=180), Nphi,
                                          endpoint=False)
@@ -559,7 +531,7 @@ def check_theta0_vs_2d_fbp(n=24, Nu=48, ulim=2.0, Nphi=64,
     print("\n" + "=" * 74)
     print("Tilted 3-D recon of a z-invariant phantom vs independent 2-D FBP")
     print("=" * 74)
-    axes3 = Axes3.linspace((-1, 1, n), (-1, 1, n), (-1, 1, n))
+    axes3 = RegularAxes3.linspace((-1, 1, n), (-1, 1, n), (-1, 1, n))
     grid_uv = RegularGrid.linspace((-ulim, ulim, Nu), (-ulim, ulim, Nu))
     phi_axis = AngleRegularAxis.linspace(Angle(deg=0), Angle(deg=180), Nphi,
                                          endpoint=False)
@@ -606,7 +578,7 @@ def check_theta0_missing_cone(n=24, Nu=48, ulim=2.0,
     print("\n" + "=" * 74)
     print("Missing cone: 3-D ellipsoid reconstruction vs detector tilt")
     print("=" * 74)
-    axes3 = Axes3.linspace((-1, 1, n), (-1, 1, n), (-1, 1, n))
+    axes3 = RegularAxes3.linspace((-1, 1, n), (-1, 1, n), (-1, 1, n))
     grid_uv = RegularGrid.linspace((-ulim, ulim, Nu), (-ulim, ulim, Nu))
     ell = ellipsoid_phantom()
     truth = eval_ellipsoids(ell, axes3)
@@ -651,7 +623,7 @@ def check_theta0_continuity(n=24, Nu=48, ulim=2.0, Nphi=64,
     print("\n" + "=" * 74)
     print("Continuity of the tilted reconstruction as theta -> 0")
     print("=" * 74)
-    axes3 = Axes3.linspace((-1, 1, n), (-1, 1, n), (-1, 1, n))
+    axes3 = RegularAxes3.linspace((-1, 1, n), (-1, 1, n), (-1, 1, n))
     grid_uv = RegularGrid.linspace((-ulim, ulim, Nu), (-ulim, ulim, Nu))
     phi_axis = AngleRegularAxis.linspace(Angle(deg=0), Angle(deg=180), Nphi,
                                          endpoint=False)

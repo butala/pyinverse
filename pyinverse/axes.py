@@ -168,6 +168,20 @@ class RegularAxes3:
     # depends on numba which currently does not support python
     # 3.11. There is an update in the works.
 
+    def _vtk_extent(self, cell=True):
+        """``(origin, spacing)`` in VTK's (x, y, z) order.
+
+        ``cell=True`` -- the cell grid :meth:`actor` / :meth:`volume` carry
+        (one scalar per cell): the origin is the first *border*.
+        ``cell=False`` -- the sample points of :meth:`to_vtk_image` (one
+        scalar per sample): the origin is the first *centre*.  The two differ
+        by half a cell, so the distinction matters.
+        """
+        axes = (self.axis_x, self.axis_y, self.axis_z)
+        origin = tuple(ax.borders[0] if cell else ax.centers[0] for ax in axes)
+        spacing = tuple(ax.T for ax in axes)
+        return origin, spacing
+
     # Interesting discussion of VTK, LUT, and nan mapping
     # https://gitlab.kitware.com/vtk/vtk/-/issues/18197
     def _vtk_plot_setup(self, X, vmin=None, vmax=None, cmap='viridis', blank_nan=False):
@@ -176,7 +190,7 @@ class RegularAxes3:
         vtk = optional_import('vtk', extra='viz', purpose='RegularAxes3 rendering')
         numpy_support = optional_import('vtk.util.numpy_support', extra='viz',
                                         purpose='RegularAxes3 rendering')
-        cmap2color_transfer_function = optional_import(
+        matplotlib_ctf = optional_import(
             'pyviz4d.volume', extra='viz',
             purpose='RegularAxes3 rendering').matplotlib_ctf
         assert X.shape == self.shape, (X.shape, self.shape)
@@ -188,10 +202,9 @@ class RegularAxes3:
         grid = vtk.vtkUniformGrid() if blank_nan else vtk.vtkImageData()
         Nz, Ny, Nx = self.shape
         grid.SetDimensions(Nx+1, Ny+1, Nz+1)
-        grid.SetOrigin(self.axis_x.borders[0],
-                       self.axis_y.borders[0],
-                       self.axis_z.borders[0])
-        grid.SetSpacing(self.axis_x.T, self.axis_y.T, self.axis_z.T)
+        origin, spacing = self._vtk_extent()
+        grid.SetOrigin(*origin)
+        grid.SetSpacing(*spacing)
         self._vtk_grid = grid          # the most recent grid, for callers that inspect it
         self._values = numpy_support.numpy_to_vtk(X.flat)
         grid.GetCellData().SetScalars(self._values)
@@ -205,7 +218,7 @@ class RegularAxes3:
             vmax = np.nanmax(X)
         # matplotlib_ctf(cmap_name, scalar_min, scalar_max) -> a
         # vtkColorTransferFunction over [vmin, vmax].
-        self._lut = cmap2color_transfer_function(cmap, vmin, vmax)
+        self._lut = matplotlib_ctf(cmap, vmin, vmax)
         return vmin, vmax
 
 
@@ -288,7 +301,10 @@ class RegularAxes3:
         #volume_property.ShadeOn()
         volume_property.SetInterpolationTypeToLinear()
 
-        volume_mapper = vtk.vtkOpenGLGPUVolumeRayCastMapper()
+        # vtkSmartVolumeMapper, not vtkOpenGLGPUVolumeRayCastMapper: the latter
+        # needs OpenGL outright, while SmartVolumeMapper picks a back end (what
+        # pyviz4d's VolumeActor does), so volume() also works on a headless box.
+        volume_mapper = vtk.vtkSmartVolumeMapper()
         volume_mapper.SetInputData(self._vtk_grid)
 
         volume = vtk.vtkVolume()
@@ -319,12 +335,11 @@ class RegularAxes3:
         Nz, Ny, Nx = self.shape
         image = vtk.vtkImageData()
         image.SetDimensions(Nx, Ny, Nz)
-        # one point per sample, so the origin is the first sample centre and
-        # the spacing is the sampling period of each axis
-        image.SetOrigin(self.axis_x.centers[0],
-                        self.axis_y.centers[0],
-                        self.axis_z.centers[0])
-        image.SetSpacing(self.axis_x.T, self.axis_y.T, self.axis_z.T)
+        # one point per sample: origin at the first sample *centre*, half a
+        # cell in from the cell grid's corner (see `_vtk_extent`)
+        origin, spacing = self._vtk_extent(cell=False)
+        image.SetOrigin(*origin)
+        image.SetSpacing(*spacing)
         values = numpy_support.numpy_to_vtk(
             np.ascontiguousarray(X, dtype=np.float32).ravel(), deep=True,
             array_type=vtk.VTK_FLOAT)
@@ -345,7 +360,7 @@ class RegularAxes3:
         Requires the optional ``viz`` dependency
         (``pip install pyinverse[viz]``).
         """
-        optional_import('vtk', extra='viz', purpose='RegularAxes3.isosurface_actor')
+        # to_vtk_image resolves vtk; only pyviz4d's contouring is needed here
         contour_actor = optional_import(
             'pyviz4d.volume', extra='viz',
             purpose='RegularAxes3.isosurface_actor').contour_actor
@@ -407,30 +422,14 @@ if __name__ == '__main__':
     # Direct volume rendering of the same field, as a composite blend.
     X_volume = axes3.volume(X, vmin=0, vmax=28, amin=0.0, amax=0.6)
 
-    from pyviz4d import Viewer4D, render_to_png
+    from pyviz4d import render_to_png
 
-    ren = Viewer4D()
-    ren.add_actor(X_actor)
-    ren.add_actor(X_iso)
-    # ren.add_actor(X_volume)   # vtkVolume: uncomment for the composite blend
+    from pyinverse.viz import show
 
-    # A scalar bar for the colour map (Viewer4D ships an orientation triad of
-    # its own; a legend is still worth having next to a scalar field).
-    vtk = optional_import('vtk', extra='viz', purpose='demo')
-    bar = vtk.vtkScalarBarActor()
-    bar.SetLookupTable(axes3._lut)
-    bar.SetNumberOfLabels(3)
-    ren.ren.AddViewProp(bar)
+    # One viewer for the pair -- add X_volume to the list for the composite
+    # blend.  `show` puts a scalar bar on the colour map, writes the PNG and
+    # opens the window on `--show`.
+    show([X_actor, X_iso], png='/tmp/axes3_demo.png', scalar_bar=axes3._lut)
 
-    ren.ren.ResetCamera()
-    ren.save_screenshot('/tmp/axes3_demo.png')
-
-    # Offscreen and windowless: the path the tests and any headless box want.
+    # The windowless path, for the tests and any headless box.
     render_to_png([X_actor, X_iso], '/tmp/axes3_demo_offscreen.png')
-
-    # Open the interactive window with `--show` (q quits, f fullscreen, r
-    # resets the camera to the fitted view).  Without it the PNGs above are all
-    # you get, so the demo stays usable on a headless box.
-    import sys
-    if '--show' in sys.argv:
-        ren.start()

@@ -233,17 +233,8 @@ if __name__ == '__main__':
                   Angle(deg=72), Angle(deg=0), Angle(deg=0),
                   -0.2)
 
-    from pyviz4d import Viewer4D
+    from pyinverse.viz import show
 
     actor = e.actor()
     actor.GetProperty().SetColor(1, 0, 0)
-
-    ren = Viewer4D()
-    ren.add_actor(actor)
-    ren.ren.ResetCamera()
-    ren.save_screenshot('/tmp/ellipsoid.png')
-    # Open the interactive window with `--show` (q quits, f fullscreen, r
-    # resets the camera).  Without it the PNG above is all you get.
-    import sys
-    if '--show' in sys.argv:
-        ren.start()
+    show([actor], png='/tmp/ellipsoid.png')

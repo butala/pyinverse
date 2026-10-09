@@ -206,13 +206,5 @@ if __name__ == '__main__':
 
     actor = p.actor()
 
-    from pyviz4d import Viewer4D
-    ren = Viewer4D()
-    ren.add_actor(actor)
-    ren.ren.ResetCamera()
-    ren.save_screenshot('/tmp/phantom3.png')
-    # Open the interactive window with `--show` (q quits, f fullscreen, r
-    # resets the camera).  Without it the PNG above is all you get.
-    import sys
-    if '--show' in sys.argv:
-        ren.start()
+    from pyinverse.viz import show
+    show([actor], png='/tmp/phantom3.png')

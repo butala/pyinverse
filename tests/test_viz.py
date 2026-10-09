@@ -132,6 +132,34 @@ def test_blank_nan_no_longer_clashes_with_a_later_call(axes3):
     assert a.IsA('vtkActor') and b.IsA('vtkVolume')
 
 
+def test_show_writes_the_png_and_stays_headless(tmp_path, axes3, monkeypatch):
+    """`show()` snapshots without a window and only opens one on request.
+
+    The `--show` flag is the default trigger for a demo's ``__main``; with
+    nothing on the command line it must not enter the (blocking) event loop.
+    """
+    pytest.importorskip('pyviz4d')
+    from pyinverse.viz import show
+
+    started = []
+    import pyviz4d.viz as v
+    monkeypatch.setattr(v.Viewer4D, 'start',
+                        lambda self: started.append(True))
+    monkeypatch.setattr('sys.argv', ['demo'])
+
+    X = np.linspace(0.0, 1.0, np.prod(axes3.shape)).reshape(axes3.shape)
+    png = tmp_path / 'shot.png'
+    ren = show([axes3.actor(X), axes3.isosurface_actor(X, levels=[0.5])],
+               png=str(png), scalar_bar=axes3._lut)
+    assert png.stat().st_size > 0
+    assert started == []                     # headless by default
+    assert ren.ren.GetActors().GetNumberOfItems() >= 2
+
+    monkeypatch.setattr('sys.argv', ['demo', '--show'])
+    show([axes3.actor(X)], png=str(tmp_path / 'again.png'))
+    assert started == [True]                 # --show opens the window
+
+
 def test_phantom3_actor_paints_distinct_densities_distinctly():
     """Regression: ``cm(rho * 255)`` collapsed four densities into two.
 
